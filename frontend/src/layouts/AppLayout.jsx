@@ -14,16 +14,16 @@ import { useAuth } from '../context/AuthContext'
 
 const adminLinks = [
   { to: '/', label: 'Tableau de bord', icon: Gauge },
-  { to: '/bureaux', label: 'Bureaux', icon: Building2 },
-  { to: '/agents', label: 'Agents', icon: Users },
+  { to: '/bureaux', label: 'Bureaux de Change', icon: Building2 },
+  { to: '/agents', label: 'Gestion des Agents', icon: Users },
   { to: '/fixings', label: 'Fixings', icon: ClipboardList },
   { to: '/historique', label: 'Historique', icon: History },
 ]
 
 const agentLinks = [
   { to: '/', label: 'Tableau de bord', icon: Gauge },
-  { to: '/bureaux', label: 'Bureaux', icon: Building2 },
-  { to: '/fixings', label: 'Mes fixings', icon: ClipboardList },
+  { to: '/bureaux', label: 'Bureaux de Change', icon: Building2 },
+  { to: '/fixings', label: 'Gestion fixings', icon: ClipboardList },
 ]
 
 export default function AppLayout() {

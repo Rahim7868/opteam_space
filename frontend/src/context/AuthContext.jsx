@@ -3,7 +3,7 @@ import api from '../api/client'
 
 const AuthContext = createContext(null)
 
-// 🔐 safe parse (évite écran blanc)
+
 function safeParseUser(value) {
   try {
     if (!value || value === 'undefined') return null
@@ -31,7 +31,7 @@ export function AuthProvider({ children }) {
     api
       .get('/auth/me')
       .then((data) => {
-        // ⚠️ compatible avec ton api interceptor
+     
         const userData = data?.data?.data ?? data?.data ?? data
 
         setUser(userData)

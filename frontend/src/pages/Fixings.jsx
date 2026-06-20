@@ -176,7 +176,7 @@ export default function Fixings() {
         subtitle="Création et suivi des fixings"
       />
 
-      {/* ✅ FORMULAIRE AGENT RESTAURÉ */}
+      {}
       {isAgent && (
         <form
           onSubmit={submit}
