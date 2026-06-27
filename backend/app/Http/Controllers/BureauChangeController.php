@@ -6,30 +6,27 @@ use App\Http\Requests\BureauChangeRequest;
 use App\Http\Resources\BureauChangeResource;
 use App\Models\BureauChange;
 use App\Services\AuditLogger;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Support\Facades\Gate;
 
 class BureauChangeController extends Controller
 {
     public function index(): AnonymousResourceCollection
     {
-        Gate::authorize('viewAny', BureauChange::class);
-
         $query = BureauChange::query()
+            ->with('createur', 'validateur')
             ->latest();
 
         if (request('search')) {
             $search = request('search');
-
-            $query->where(function ($q) use ($search) {
-                $q->where('designation', 'like', "%{$search}%")
-                  ->orWhere('numero_agrement', 'like', "%{$search}%")
-                  ->orWhere('numero_ordre', 'like', "%{$search}%");
-            });
+            $query->where(fn($q) => $q
+                ->where('designation', 'like', "%{$search}%")
+                ->orWhere('numero_agrement', 'like', "%{$search}%")
+            );
         }
 
-        if (request('status')) {
-            $query->where('status', request('status'));
+        if (request('statut')) {
+            $query->where('statut', request('statut'));
         }
 
         return BureauChangeResource::collection(
@@ -39,53 +36,99 @@ class BureauChangeController extends Controller
 
     public function store(BureauChangeRequest $request): BureauChangeResource
     {
-        Gate::authorize('create', BureauChange::class);
-
-        $bureauChange = BureauChange::create($request->validated());
+        $bureauChange = BureauChange::create([
+            ...$request->validated(),
+            'created_by' => auth()->id(),
+            'statut'     => 'en_attente',
+        ]);
 
         AuditLogger::forModel(
             'bureau_created',
             $bureauChange,
-            'Creation bureau de change'
+            'Création bureau de change : ' . $bureauChange->designation
         );
 
-        return new BureauChangeResource($bureauChange);
+        return new BureauChangeResource($bureauChange->load('createur'));
     }
 
     public function show(BureauChange $bureauChange): BureauChangeResource
     {
-        Gate::authorize('view', $bureauChange);
-
-        return new BureauChangeResource($bureauChange);
+        return new BureauChangeResource(
+            $bureauChange->load('createur', 'validateur')
+        );
     }
 
-    public function update(BureauChangeRequest $request, BureauChange $bureauChange): BureauChangeResource
+    public function update(BureauChangeRequest $request, BureauChange $bureauChange): JsonResponse|BureauChangeResource
     {
-        Gate::authorize('update', $bureauChange);
+        if (!$bureauChange->isEditable()) {
+            return response()->json([
+                'message' => 'Ce bureau de change ne peut plus être modifié.'
+            ], 403);
+        }
 
         $bureauChange->update($request->validated());
 
         AuditLogger::forModel(
             'bureau_updated',
             $bureauChange,
-            'Modification bureau de change'
+            'Modification bureau de change : ' . $bureauChange->designation
         );
 
-        return new BureauChangeResource($bureauChange);
+        return new BureauChangeResource($bureauChange->load('createur'));
     }
 
-    public function destroy(BureauChange $bureauChange): BureauChangeResource
+    public function valider(BureauChange $bureauChange): JsonResponse
     {
-        Gate::authorize('delete', $bureauChange);
+        if (!$bureauChange->isEditable()) {
+            return response()->json(['message' => 'Déjà traité.'], 403);
+        }
 
-        $bureauChange->update(['status' => 'inactive']);
+        $bureauChange->update([
+            'statut'       => 'valide',
+            'validated_by' => auth()->id(),
+        ]);
 
         AuditLogger::forModel(
-            'bureau_deactivated',
+            'bureau_valide',
             $bureauChange,
-            'Desactivation bureau de change'
+            'Validation bureau de change : ' . $bureauChange->designation
         );
 
-        return new BureauChangeResource($bureauChange);
+        return response()->json([
+            'message'      => 'Bureau de change validé.',
+            'bureauChange' => new BureauChangeResource(
+                $bureauChange->load('createur', 'validateur')
+            ),
+        ]);
+    }
+
+    public function rejeter(BureauChange $bureauChange): JsonResponse
+    {
+        request()->validate([
+            'commentaire' => ['nullable', 'string'],
+        ]);
+
+        if (!$bureauChange->isEditable()) {
+            return response()->json(['message' => 'Déjà traité.'], 403);
+        }
+
+        $bureauChange->update([
+            'statut'       => 'rejete',
+            'validated_by' => auth()->id(),
+            'commentaire'  => request('commentaire'),
+        ]);
+
+        AuditLogger::forModel(
+            'bureau_rejete',
+            $bureauChange,
+            'Rejet bureau de change : ' . $bureauChange->designation
+        );
+
+        return response()->json([
+            'message'      => 'Bureau de change rejeté.',
+            'bureauChange' => new BureauChangeResource(
+                $bureauChange->load('createur', 'validateur')
+            ),
+        ]);
     }
 }

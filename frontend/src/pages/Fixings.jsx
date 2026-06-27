@@ -1,54 +1,49 @@
-import { Check, Plus, X } from 'lucide-react'
+import { Check, Plus, Search, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import DataTable from '../components/DataTable'
 import ErrorAlert from '../components/ErrorAlert'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
+import ConfirmModal from '../components/ConfirmModal'
 import { useAuth } from '../context/AuthContext'
 
 const emptyForm = {
   date_fixing: new Date().toISOString().slice(0, 10),
   devise: 'EUR',
   cours: '',
-  piece_jointe: null
+  piece_jointe: null,
 }
 
 const currencies = ['EUR', 'USD', 'GBP', 'CAD', 'CHF', 'XOF']
 
-function formatVariation(value) {
-  if (value === null || value === undefined) return '-'
-  const number = Number(value)
-  const sign = number > 0 ? '+' : ''
-  return `${sign}${Number.isInteger(number) ? number : number.toFixed(4)}`
-}
-
 export default function Fixings() {
-  const { isAdmin, isAgent } = useAuth()
+  const { hasPermission } = useAuth()
 
-  const [rows, setRows] = useState([])
-  const [meta, setMeta] = useState(null)
+  const canCreate   = hasPermission('creer_fixing')
+  const canModify   = hasPermission('modifier_fixing')
+  const canValidate = hasPermission('valider_fixing')
+  const canReject   = hasPermission('rejeter_fixing')
 
-  const [filters, setFilters] = useState({
-    status: '',
-    devise: '',
-    user_id: '',
-    date: '',
-    page: 1
-  })
+  const [rows, setRows]     = useState([])
+  const [meta, setMeta]     = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [filters, setFilters] = useState({ statut: '', devise: '', page: 1 })
+  const [form, setForm]     = useState(emptyForm)
+  const [error, setError]   = useState('')
 
-  const [form, setForm] = useState(emptyForm)
-  const [error, setError] = useState('')
+  // Modal rejet
+  const [rejectModal, setRejectModal] = useState({ open: false, id: null })
+  const [commentaire, setCommentaire] = useState('')
 
   function load() {
+    setLoading(true)
     const params = Object.fromEntries(
       Object.entries(filters).filter(([, v]) => v !== '')
     )
-
-    api.get('/fixings', { params }).then(({ data }) => {
-      setRows(data.data)
-      setMeta(data.meta)
-    })
+    api.get('/fixings', { params })
+      .then(({ data }) => { setRows(data.data); setMeta(data.meta) })
+      .finally(() => setLoading(false))
   }
 
   useEffect(load, [filters])
@@ -56,12 +51,8 @@ export default function Fixings() {
   async function submit(e) {
     e.preventDefault()
     setError('')
-
     const payload = new FormData()
-    Object.entries(form).forEach(([k, v]) => {
-      if (v) payload.append(k, v)
-    })
-
+    Object.entries(form).forEach(([k, v]) => { if (v) payload.append(k, v) })
     try {
       await api.post('/fixings', payload)
       setForm(emptyForm)
@@ -71,21 +62,20 @@ export default function Fixings() {
     }
   }
 
-  async function decide(id, action) {
+  async function valider(id) {
     try {
-      const url =
-        action === 'approve'
-          ? `/fixings/${id}/approve`
-          : `/fixings/${id}/reject`
+      await api.post(`/fixings/${id}/valider`)
+      load()
+    } catch (err) {
+      setError(getApiError(err))
+    }
+  }
 
-      const body =
-        action === 'reject'
-          ? { rejection_reason: window.prompt('Motif du refus') }
-          : {}
-
-      if (action === 'reject' && !body.rejection_reason) return
-
-      await api.post(url, body)
+  async function rejeter() {
+    try {
+      await api.post(`/fixings/${rejectModal.id}/rejeter`, { commentaire })
+      setRejectModal({ open: false, id: null })
+      setCommentaire('')
       load()
     } catch (err) {
       setError(getApiError(err))
@@ -94,147 +84,160 @@ export default function Fixings() {
 
   const columns = [
     { key: 'date_fixing', label: 'Date' },
-    { key: 'devise', label: 'Devise' },
+    { key: 'devise',      label: 'Devise' },
     {
-      key: 'cours',
-      label: 'Cours',
-      render: (row) => Number(row.cours).toFixed(4)
+      key: 'cours', label: 'Cours',
+      render: (row) => Number(row.cours).toFixed(4),
     },
     {
-      key: 'variation',
-      label: 'Variation',
-      render: (row) => (
-        <span
-          className={
-            Number(row.variation) > 0
-              ? 'text-emerald-700 font-semibold'
-              : Number(row.variation) < 0
-              ? 'text-rose-700 font-semibold'
-              : 'text-slate-500'
-          }
-        >
-          {formatVariation(row.variation)}
-        </span>
-      )
+      key: 'piece_jointe', label: 'Fichier',
+      render: (row) => row.piece_jointe_url
+        ? <a href={row.piece_jointe_url} target="_blank" rel="noreferrer"
+             className="text-teal-600 hover:underline text-xs">Voir</a>
+        : <span className="text-slate-400">—</span>,
     },
     {
-      key: 'piece_jointe',
-      label: 'Fichier',
-      render: (row) =>
-        row.piece_jointe_url ? (
-          <a
-            href={row.piece_jointe_url}
-            target="_blank"
-            rel="noreferrer"
-            className="text-teal-600 hover:underline"
-          >
-            Voir fichier
-          </a>
-        ) : '-'
-    },
-    !isAgent && {
-      key: 'agent',
-      label: 'Agent',
-      render: (row) => row.user?.name || '-'
+      key: 'createur', label: 'Créateur',
+      render: (row) => row.createur?.nom ?? '—',
     },
     {
-      key: 'status',
-      label: 'Statut',
-      render: (row) => <StatusBadge status={row.status} />
+      key: 'statut', label: 'Statut',
+      render: (row) => <StatusBadge status={row.statut} />,
     },
     {
-      key: 'actions',
-      label: 'Actions',
+      key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          {isAdmin && row.status === 'pending' && (
-            <>
-              <button
-                className="btn btn-secondary"
-                onClick={() => decide(row.id, 'approve')}
-              >
-                <Check size={16} />
-              </button>
-
-              <button
-                className="btn btn-danger"
-                onClick={() => decide(row.id, 'reject')}
-              >
-                <X size={16} />
-              </button>
-            </>
+          {canValidate && row.statut === 'en_attente' && (
+            <button
+              onClick={() => valider(row.id)}
+              className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 transition"
+            >
+              <Check size={13} /> Valider
+            </button>
+          )}
+          {canReject && row.statut === 'en_attente' && (
+            <button
+              onClick={() => setRejectModal({ open: true, id: row.id })}
+              className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100 transition"
+            >
+              <X size={13} /> Rejeter
+            </button>
           )}
         </div>
-      )
-    }
-  ].filter(Boolean)
+      ),
+    },
+  ]
 
   return (
     <>
       <PageHeader
-        title={isAdmin ? 'Fixings' : 'Mes fixings'}
-        subtitle="Création et suivi des fixings"
+        title="Fixings"
+        subtitle="Création et suivi des fixings de change."
       />
 
-      {}
-      {isAgent && (
+      <ErrorAlert message={error} />
+
+      {/* Filtres */}
+      <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px_180px]">
+        <div className="relative">
+          <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
+          <select
+            className="field pl-9"
+            value={filters.devise}
+            onChange={(e) => setFilters({ ...filters, devise: e.target.value, page: 1 })}
+          >
+            <option value="">Toutes devises</option>
+            {currencies.map((c) => <option key={c}>{c}</option>)}
+          </select>
+        </div>
+
+        <select
+          className="field"
+          value={filters.statut}
+          onChange={(e) => setFilters({ ...filters, statut: e.target.value, page: 1 })}
+        >
+          <option value="">Tous statuts</option>
+          <option value="en_attente">En attente</option>
+          <option value="valide">Validés</option>
+          <option value="rejete">Rejetés</option>
+        </select>
+      </div>
+
+      {/* Formulaire création */}
+      {canCreate && (
         <form
           onSubmit={submit}
-          className="panel mb-5 grid gap-3 p-4 md:grid-cols-4"
+          className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm grid gap-3 md:grid-cols-4"
         >
-          <ErrorAlert message={error} />
-
           <input
             type="date"
             className="field"
             value={form.date_fixing}
-            onChange={(e) =>
-              setForm({ ...form, date_fixing: e.target.value })
-            }
+            onChange={(e) => setForm({ ...form, date_fixing: e.target.value })}
           />
-
           <select
             className="field"
             value={form.devise}
-            onChange={(e) =>
-              setForm({ ...form, devise: e.target.value })
-            }
+            onChange={(e) => setForm({ ...form, devise: e.target.value })}
           >
-            {currencies.map((c) => (
-              <option key={c}>{c}</option>
-            ))}
+            {currencies.map((c) => <option key={c}>{c}</option>)}
           </select>
-
           <input
             className="field"
-            placeholder="Cours"
+            placeholder="Cours (ex: 655.957)"
             value={form.cours}
-            onChange={(e) =>
-              setForm({ ...form, cours: e.target.value })
-            }
+            onChange={(e) => setForm({ ...form, cours: e.target.value })}
           />
-
           <input
             type="file"
             className="field"
-            onChange={(e) =>
-              setForm({ ...form, piece_jointe: e.target.files[0] })
-            }
+            accept=".pdf,.jpg,.jpeg,.png"
+            onChange={(e) => setForm({ ...form, piece_jointe: e.target.files[0] })}
           />
-
-          <button className="btn btn-primary col-span-full">
-            <Plus size={16} />
-            Ajouter fixing
+          <button className="btn btn-primary col-span-full md:col-span-4">
+            <Plus size={16} /> Ajouter un fixing
           </button>
         </form>
       )}
 
       <DataTable
+        columns={columns}
         rows={rows}
         meta={meta}
+        loading={loading}
         onPage={(page) => setFilters({ ...filters, page })}
-        columns={columns}
       />
+
+      {/* Modal rejet */}
+      {rejectModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-800">Rejeter le fixing</h3>
+            <p className="mt-1 text-sm text-slate-500">Indiquez un motif de rejet (optionnel).</p>
+            <textarea
+              className="field mt-4 h-24 resize-none"
+              placeholder="Motif du rejet..."
+              value={commentaire}
+              onChange={(e) => setCommentaire(e.target.value)}
+            />
+            <div className="mt-4 flex justify-end gap-3">
+              <button
+                onClick={() => { setRejectModal({ open: false, id: null }); setCommentaire('') }}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={rejeter}
+                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
+              >
+                Confirmer le rejet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

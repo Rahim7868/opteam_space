@@ -2,38 +2,27 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\DecisionRequest;
 use App\Http\Requests\FixingRequest;
 use App\Http\Resources\FixingResource;
 use App\Models\Fixing;
 use App\Services\AuditLogger;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Support\Facades\Gate;
 
 class FixingController extends Controller
 {
     public function index(): AnonymousResourceCollection
     {
-        Gate::authorize('viewAny', Fixing::class);
-
-        $user = request()->user();
-
         $query = Fixing::query()
-            ->with(['user'])
+            ->with('createur', 'validateur')
             ->latest();
 
-        if ($user->isAgent()) {
-            $query->where('user_id', $user->id);
+        if (request('statut')) {
+            $query->where('statut', request('statut'));
         }
 
-        foreach (['devise', 'status', 'user_id'] as $field) {
-            if (request()->filled($field)) {
-                $query->where($field, request($field));
-            }
-        }
-
-        if (request()->filled('date')) {
-            $query->whereDate('date_fixing', request('date'));
+        if (request('devise')) {
+            $query->where('devise', request('devise'));
         }
 
         return FixingResource::collection(
@@ -43,110 +32,93 @@ class FixingController extends Controller
 
     public function store(FixingRequest $request): FixingResource
     {
-        Gate::authorize('create', Fixing::class);
+        $fixing = Fixing::create([
+            ...$request->validated(),
+            'created_by' => auth()->id(),
+            'statut'     => 'en_attente',
+        ]);
 
-        $data = $request->validated();
+        AuditLogger::forModel(
+            'fixing_created',
+            $fixing,
+            'Création fixing ' . $fixing->devise . ' — ' . $fixing->cours
+        );
 
-        if ($request->hasFile('piece_jointe')) {
-            $data['piece_jointe'] = $request
-                ->file('piece_jointe')
-                ->store('fixings', 'public');
-        }
-
-        $data['user_id'] = $request->user()->id;
-        $data['status'] = 'pending';
-
-        $fixing = Fixing::create($data);
-
-        AuditLogger::forModel('fixing_created', $fixing, 'Creation fixing');
-
-        return new FixingResource($fixing->load(['user']));
+        return new FixingResource($fixing->load('createur'));
     }
 
     public function show(Fixing $fixing): FixingResource
     {
-        Gate::authorize('view', $fixing);
-
-        return new FixingResource($fixing->load(['user']));
+        return new FixingResource($fixing->load('createur', 'validateur'));
     }
 
-    public function update(FixingRequest $request, Fixing $fixing): FixingResource
+    public function update(FixingRequest $request, Fixing $fixing): JsonResponse|FixingResource
     {
-        Gate::authorize('update', $fixing);
-
-        // règle métier obligatoire
-        if ($fixing->status !== 'pending') {
-            abort(403, 'Fixing non modifiable');
+        if (!$fixing->isEditable()) {
+            return response()->json([
+                'message' => 'Ce fixing ne peut plus être modifié.'
+            ], 403);
         }
 
-        $data = $request->validated();
+        $fixing->update($request->validated());
 
-        if ($request->hasFile('piece_jointe')) {
-            $data['piece_jointe'] = $request
-                ->file('piece_jointe')
-                ->store('fixings', 'public');
-        }
+        AuditLogger::forModel(
+            'fixing_updated',
+            $fixing,
+            'Modification fixing ' . $fixing->devise . ' — ' . $fixing->cours
+        );
 
-        $fixing->update($data);
-
-        AuditLogger::forModel('fixing_updated', $fixing, 'Update fixing');
-
-        return new FixingResource($fixing->load(['user']));
+        return new FixingResource($fixing->load('createur'));
     }
 
-    //  FIX IMPORTANT : approve route standard
-    public function approve(Fixing $fixing): FixingResource
+    public function valider(Fixing $fixing): JsonResponse
     {
-        Gate::authorize('decide', $fixing);
+        if (!$fixing->isEditable()) {
+            return response()->json(['message' => 'Déjà traité.'], 403);
+        }
 
         $fixing->update([
-            'status' => 'approved',
-            'validated_by' => request()->user()->id,
-            'validated_at' => now(),
-            'rejection_reason' => null,
+            'statut'       => 'valide',
+            'validated_by' => auth()->id(),
         ]);
 
-        return new FixingResource($fixing->load(['user']));
+        AuditLogger::forModel(
+            'fixing_valide',
+            $fixing,
+            'Validation du fixing ' . $fixing->devise . ' — ' . $fixing->cours
+        );
+
+        return response()->json([
+            'message' => 'Fixing validé.',
+            'fixing'  => new FixingResource($fixing->load('createur', 'validateur')),
+        ]);
     }
 
-    //  FIX IMPORTANT : reject route standard
-    public function reject(Fixing $fixing): FixingResource
+    public function rejeter(Fixing $fixing): JsonResponse
     {
-        Gate::authorize('decide', $fixing);
-
         request()->validate([
-            'rejection_reason' => ['required', 'string', 'max:1000']
+            'commentaire' => ['nullable', 'string'],
         ]);
 
-        $fixing->update([
-            'status' => 'rejected',
-            'rejection_reason' => request('rejection_reason'),
-            'validated_by' => request()->user()->id,
-            'validated_at' => now(),
-        ]);
-
-        return new FixingResource($fixing->load(['user']));
-    }
-
-    //  MODIFICATION REQUEST (MANQUAIT)
-    public function requestModification(Fixing $fixing)
-    {
-        Gate::authorize('update', $fixing);
-
-        if ($fixing->status !== 'pending') {
-            abort(403, 'Non modifiable');
+        if (!$fixing->isEditable()) {
+            return response()->json(['message' => 'Déjà traité.'], 403);
         }
 
-        request()->validate([
-            'nouvelle_devise' => ['required', 'string'],
-            'nouveau_cours' => ['required', 'numeric'],
-        ]);
-
         $fixing->update([
-            'devise' => request('nouvelle_devise'),
-            'cours' => request('nouveau_cours'),
+            'statut'       => 'rejete',
+            'validated_by' => auth()->id(),
+            'commentaire'  => request('commentaire'),
         ]);
 
-        return new FixingResource($fixing->load(['user']));
+        AuditLogger::forModel(
+            'fixing_rejete',
+            $fixing,
+            'Rejet du fixing ' . $fixing->devise . ' — ' . $fixing->cours
+        );
+
+        return response()->json([
+            'message' => 'Fixing rejeté.',
+            'fixing'  => new FixingResource($fixing->load('createur', 'validateur')),
+        ]);
     }
 }

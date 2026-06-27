@@ -15,34 +15,61 @@ class DashboardController extends Controller
     {
         $user = request()->user();
 
-        $fixings = Fixing::query();
+        // ── Fixings ───────────────────────────────────────────
+        $fixingsQuery = Fixing::query();
 
-        if ($user->isAgent()) {
-            $fixings->where('user_id', $user->id);
+        // Un acteur sans permission de tout voir ne voit que les siens
+        if (!$user->hasPermission('valider_fixing')) {
+            $fixingsQuery->where('created_by', $user->id);
         }
 
-        $status = (clone $fixings)
-            ->select('status', DB::raw('count(*) as total'))
-            ->groupBy('status')
-            ->pluck('total', 'status');
+        // Comptage par statut
+        $statuts = (clone $fixingsQuery)
+            ->select('statut', DB::raw('count(*) as total'))
+            ->groupBy('statut')
+            ->pluck('total', 'statut');
 
         $payload = [
-            'fixings_total' => (clone $fixings)->count(),
-            'fixings_pending' => $status['pending'] ?? 0,
-            'fixings_approved' => $status['approved'] ?? 0,
-            'fixings_rejected' => $status['rejected'] ?? 0,
+            // ── Fixings
+            'fixings_total'    => (clone $fixingsQuery)->count(),
+            'fixings_en_attente' => $statuts['en_attente'] ?? 0,
+            'fixings_valides'    => $statuts['valide']     ?? 0,
+            'fixings_rejetes'    => $statuts['rejete']     ?? 0,
 
-            'recent_fixings' => (clone $fixings)
-                ->with(['user'])
+            // ── Derniers fixings
+            'recent_fixings' => (clone $fixingsQuery)
+                ->with('createur:id,nom')
                 ->latest()
                 ->limit(5)
                 ->get(),
         ];
 
-        if ($user->isAdmin()) {
-            $payload['agents_total'] = User::where('role', 'agent')->count();
-            $payload['bureaux_total'] = BureauChange::count();
+        // ── Données supplémentaires selon permissions ─────────
+
+        if ($user->hasPermission('gerer_acteurs')) {
+            $payload['acteurs_total']  = User::count();
+            $payload['acteurs_actifs'] = User::where('is_active', true)->count();
+        }
+
+        if ($user->hasPermission('valider_bureau_change')) {
+            $bureauStatuts = BureauChange::query()
+                ->select('statut', DB::raw('count(*) as total'))
+                ->groupBy('statut')
+                ->pluck('total', 'statut');
+
+            $payload['bureaux_total']      = BureauChange::count();
+            $payload['bureaux_en_attente'] = $bureauStatuts['en_attente'] ?? 0;
+            $payload['bureaux_valides']    = $bureauStatuts['valide']     ?? 0;
+            $payload['bureaux_rejetes']    = $bureauStatuts['rejete']     ?? 0;
+        }
+
+        if ($user->hasPermission('gerer_acteurs')) {
             $payload['audit_logs_total'] = AuditLog::count();
+            $payload['recent_audit_logs'] = AuditLog::query()
+                ->with('user:id,nom')
+                ->latest()
+                ->limit(5)
+                ->get();
         }
 
         return response()->json($payload);

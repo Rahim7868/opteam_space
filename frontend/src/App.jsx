@@ -1,28 +1,99 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute'
 import AppLayout from './layouts/AppLayout'
-import Agents from './pages/Agents'
-import AuditLogs from './pages/AuditLogs'
-import Bureaux from './pages/Bureaux'
+
+// Auth
+import Login          from './pages/Login'
+import ChangePassword from './pages/ChangePassword'
+
+// Dashboard
 import Dashboard from './pages/Dashboard'
-import Fixings from './pages/Fixings'
-import Login from './pages/Login'
+
+// Fixings & Bureaux
+import Fixings       from './pages/Fixings'
+import BureauChanges from './pages/BureauChanges'
+
+// Acteurs
+import Users       from './pages/Users'
+import Roles       from './pages/Roles'
+import Permissions from './pages/Permissions'
+
+// Structure
+import Agences      from './pages/Agences'
+import Directions   from './pages/Directions'
+import Departements from './pages/Departements'
+import Services     from './pages/Services'
+
+// Audit
+import AuditLogs from './pages/AuditLogs'
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+
       <Route element={<ProtectedRoute />}>
+        <Route path="/change-password" element={<ChangePassword />} />
+      </Route>
+
+      <Route element={<ProtectedRoute blockIfMustChange />}>
         <Route element={<AppLayout />}>
+
           <Route index element={<Dashboard />} />
-          <Route path="bureaux" element={<Bureaux />} />
-          <Route path="fixings" element={<Fixings />} />
-          <Route element={<ProtectedRoute roles={['admin']} />}>
-            <Route path="agents" element={<Agents />} />
-            <Route path="historique" element={<AuditLogs />} />
+
+          <Route path="fixings"
+            element={<ProtectedRoute permission="creer_fixing" />}>
+            <Route index element={<Fixings />} />
           </Route>
+
+          <Route path="bureau-changes"
+            element={<ProtectedRoute permission="creer_bureau_change" />}>
+            <Route index element={<BureauChanges />} />
+          </Route>
+
+          <Route path="users"
+            element={<ProtectedRoute permission="gerer_acteurs" />}>
+            <Route index element={<Users />} />
+          </Route>
+
+          <Route path="roles"
+            element={<ProtectedRoute permission="gerer_roles" />}>
+            <Route index element={<Roles />} />
+          </Route>
+
+          <Route path="permissions"
+            element={<ProtectedRoute permission="gerer_permissions" />}>
+            <Route index element={<Permissions />} />
+          </Route>
+
+          <Route path="agences"
+            element={<ProtectedRoute permission="gerer_agences" />}>
+            <Route index element={<Agences />} />
+          </Route>
+
+          <Route path="directions"
+            element={<ProtectedRoute permission="gerer_directions" />}>
+            <Route index element={<Directions />} />
+          </Route>
+
+          <Route path="departements"
+            element={<ProtectedRoute permission="gerer_departements" />}>
+            <Route index element={<Departements />} />
+          </Route>
+
+          <Route path="services"
+            element={<ProtectedRoute permission="gerer_services" />}>
+            <Route index element={<Services />} />
+          </Route>
+
+          <Route path="audit-logs"
+            element={<ProtectedRoute permission="gerer_acteurs" />}>
+            <Route index element={<AuditLogs />} />
+          </Route>
+
         </Route>
       </Route>
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

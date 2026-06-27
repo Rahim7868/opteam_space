@@ -1,55 +1,35 @@
 <?php
-
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Fixing extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
-        'user_id',
-        'date_fixing',
-        'devise',
-        'cours',
-        'status',
-        'validated_by',
-        'validated_at',
+        'date_fixing', 'devise', 'cours',
+        'piece_jointe', 'statut', 'commentaire',
+        'created_by', 'validated_by',
     ];
 
-    protected $casts = [
-        'date_fixing' => 'date',
-        'cours' => 'decimal:4',
-        'validated_at' => 'datetime',
-    ];
-
-    // =========================
-    // RELATIONS
-    // =========================
-
-    public function user(): BelongsTo
+    protected function casts(): array
     {
-        return $this->belongsTo(User::class);
+        return ['date_fixing' => 'date'];
     }
 
-    // =========================
-    // VARIATION LOGIC
-    // =========================
-
-    public function getVariationAttribute(): float
+    public function createur(): BelongsTo
     {
-        $previous = self::where('devise', $this->devise)
-            ->where('id', '<', $this->id)
-            ->orderByDesc('id')
-            ->first();
+        return $this->belongsTo(User::class, 'created_by');
+    }
 
-        if (!$previous) {
-            return 0;
-        }
+    public function validateur(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'validated_by');
+    }
 
-        return (float) $this->cours - (float) $previous->cours;
+    /** Un fixing en attente peut être modifié */
+    public function isEditable(): bool
+    {
+        return $this->statut === 'en_attente';
     }
 }

@@ -14,26 +14,34 @@ class BureauChangeRequest extends FormRequest
 
     public function rules(): array
     {
-        $bureauChange = $this->route('bureau_change') ?? $this->route('bureauChange');
+        // Récupère l'objet bureau_change si on est en update
+        $bureauChange = $this->route('bureauChange');
 
         return [
-            'numero_ordre' => [
-                'required',
-                'string',
-                'max:255',
-                Rule::unique('bureau_changes', 'numero_ordre')->ignore($bureauChange?->numero_ordre, 'numero_ordre'),
-            ],
             'designation' => ['required', 'string', 'max:255'],
+
             'numero_agrement' => [
                 'required',
                 'string',
                 'max:100',
-                Rule::unique('bureau_changes', 'numero_agrement')->ignore($bureauChange?->numero_ordre, 'numero_ordre'),
+                Rule::unique('bureau_changes', 'numero_agrement')
+                    ->ignore($bureauChange?->id),
             ],
+
             'representant_legal' => ['required', 'string', 'max:255'],
-            'contact' => ['required', 'string', 'max:255'],
-            'addresse' => ['required', 'string', 'max:255'],
-            'status' => ['sometimes', Rule::in(['active', 'inactive'])],
+            'contact'            => ['nullable', 'string', 'max:255'],
+            'adresse'            => ['nullable', 'string', 'max:255'],
+            // statut et created_by/validated_by gérés dans le controller
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'designation.required'       => 'La désignation est obligatoire.',
+            'numero_agrement.required'   => 'Le numéro d\'agrément est obligatoire.',
+            'numero_agrement.unique'     => 'Ce numéro d\'agrément existe déjà.',
+            'representant_legal.required'=> 'Le représentant légal est obligatoire.',
         ];
     }
 }

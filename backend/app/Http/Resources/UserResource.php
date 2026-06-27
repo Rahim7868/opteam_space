@@ -2,23 +2,42 @@
 
 namespace App\Http\Resources;
 
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class UserResource extends JsonResource
 {
-    public function toArray(Request $request): array
+    public function toArray($request): array
     {
         return [
-            'id' => $this->id,
-            'name' => $this->name,
-            'email' => $this->email,
-            'role' => $this->role,
-            'status' => $this->status,
-            'bureau_change_id' => $this->bureau_change_id,
-            'bureau_change' => $this->relationLoaded('bureauChange') ? $this->bureauChange : null,
-            'created_at' => $this->created_at?->toISOString(),
-            'updated_at' => $this->updated_at?->toISOString(),
+            'id'                   => $this->id,
+            'nom'                  => $this->nom,
+            'email'                => $this->email,
+            'adresse'              => $this->adresse,
+            'is_active'            => $this->is_active,
+            'must_change_password' => $this->must_change_password,
+
+            // Rôle
+            'role' => $this->whenLoaded('role', fn() => [
+                'id'      => $this->role->id,
+                'libelle' => $this->role->libelle,
+            ]),
+
+            // Hiérarchie via service
+            'service'     => $this->whenLoaded('service', fn() => [
+                'id'      => $this->service->id,
+                'libelle' => $this->service->libelle,
+            ]),
+            'departement' => $this->departement?->libelle,
+            'direction'   => $this->direction?->libelle,
+            'agence'      => $this->agence?->libelle,
+
+            // Permissions directes
+            'permissions' => $this->whenLoaded('permissionsDirectes',
+                fn() => $this->permissionsDirectes->pluck('libelle')
+            ),
+
+            // Toutes les permissions (rôle + directes)
+            'toutes_permissions' => $this->toutesLesPermissions(),
         ];
     }
 }

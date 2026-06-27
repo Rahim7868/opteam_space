@@ -1,27 +1,30 @@
 <?php
-
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class BureauChange extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
-        'numero_ordre',
-        'designation',
-        'numero_agrement',
-        'representant_legal',
-        'contact',
-        'addresse',
-        'status',
+        'designation', 'numero_agrement',
+        'representant_legal', 'contact', 'adresse',
+        'statut', 'commentaire',
+        'created_by', 'validated_by',
     ];
 
-    public function users(): HasMany
+    public function createur(): BelongsTo
     {
-        return $this->hasMany(User::class);
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function validateur(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'validated_by');
+    }
+
+    public function isEditable(): bool
+    {
+        return $this->statut === 'en_attente';
     }
 }

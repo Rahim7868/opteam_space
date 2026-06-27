@@ -3,84 +3,179 @@
 namespace Database\Seeders;
 
 use App\Models\AuditLog;
-use App\Models\BureauChange;
-use App\Models\Fixing;
 use App\Models\User;
+use App\Models\Role;
+use App\Models\Permission;
+use App\Models\Agence;
+use App\Models\Direction;
+use App\Models\Departement;
+use App\Models\Service;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        $central = BureauChange::create([
-            'numero_ordre' => 'BC001',
-            'designation' => 'OPTEAM Central',
-            'numero_agrement' => 'AGR-001',
-            'representant_legal' => 'Central',
-            'contact' => '+33123456789',
-            'addresse' => 'Paris',
-            'status' => 'active',
+        // ── 1. Permissions ────────────────────────────────────
+        $permissions = [
+            // Fixings
+            'creer_fixing',
+            'modifier_fixing',
+            'valider_fixing',
+            'rejeter_fixing',
+
+            // Bureaux de change
+            'creer_bureau_change',
+            'modifier_bureau_change',
+            'valider_bureau_change',
+            'rejeter_bureau_change',
+
+            // Administration
+            'gerer_acteurs',
+            'gerer_roles',
+            'gerer_permissions',
+            'gerer_agences',
+            'gerer_directions',
+            'gerer_departements',
+            'gerer_services',
+        ];
+
+        $permissionModels = [];
+        foreach ($permissions as $libelle) {
+            $permissionModels[$libelle] = Permission::create(['libelle' => $libelle]);
+        }
+
+        // ── 2. Rôles ──────────────────────────────────────────
+        $roleAdmin = Role::create(['libelle' => 'Admin']);
+        $roleAgent = Role::create(['libelle' => 'Agent']);
+        $roleSuperviseur = Role::create(['libelle' => 'Superviseur']);
+        $roleControleur  = Role::create(['libelle' => 'Contrôleur']);
+
+        // Admin → toutes les permissions
+        $roleAdmin->permissions()->sync(
+            collect($permissionModels)->pluck('id')->toArray()
+        );
+
+        // Agent → créer et modifier fixing + bureau de change
+        $roleAgent->permissions()->sync([
+            $permissionModels['creer_fixing']->id,
+            $permissionModels['modifier_fixing']->id,
+            $permissionModels['creer_bureau_change']->id,
+            $permissionModels['modifier_bureau_change']->id,
         ]);
 
-        $nord = BureauChange::create([
-            'numero_ordre' => 'BC002',
-            'designation' => 'OPTEAM Nord',
-            'numero_agrement' => 'AGR-002',
-            'representant_legal' => 'Nord',
-            'contact' => '+33987654321',
-            'addresse' => 'Lille',
-            'status' => 'active',
+        // Superviseur → valider/rejeter
+        $roleSuperviseur->permissions()->sync([
+            $permissionModels['creer_fixing']->id,
+            $permissionModels['modifier_fixing']->id,
+            $permissionModels['valider_fixing']->id,
+            $permissionModels['rejeter_fixing']->id,
+            $permissionModels['creer_bureau_change']->id,
+            $permissionModels['modifier_bureau_change']->id,
+            $permissionModels['valider_bureau_change']->id,
+            $permissionModels['rejeter_bureau_change']->id,
         ]);
 
-        $admin = User::factory()->create([
-            'name' => 'Admin',
-            'email' => 'admin@test.com',
-            'password' => 'password',
-            'role' => 'admin',
-            'status' => 'active',
+        // Contrôleur → consulter seulement
+        $roleControleur->permissions()->sync([
+            $permissionModels['creer_fixing']->id,
+            $permissionModels['modifier_fixing']->id,
         ]);
 
-        $agent1 = User::factory()->create([
-            'name' => 'Agent 1',
-            'email' => 'a1@test.com',
-            'password' => 'password',
-            'role' => 'agent',
-            'bureau_change_id' => $central->id,
+        // ── 3. Structure organisationnelle ────────────────────
+        $agence = Agence::create([
+            'libelle'   => 'Agence Principale',
+            'adresse'   => 'Conakry, Guinée',
+            'telephone' => '+224 620 000 000',
+            'email'     => 'agence@opteam.gn',
         ]);
 
-        $agent2 = User::factory()->create([
-            'name' => 'Agent 2',
-            'email' => 'a2@test.com',
-            'password' => 'password',
-            'role' => 'agent',
-            'bureau_change_id' => $nord->id,
+        $direction = Direction::create([
+            'agence_id' => $agence->id,
+            'libelle'   => 'Direction Générale',
+            'adresse'   => 'Conakry, Guinée',
+            'telephone' => '+224 620 000 001',
+            'email'     => 'direction@opteam.gn',
         ]);
 
-        Fixing::create([
-            'user_id' => $agent1->id,
-            'bureau_change_id' => $central->id,
-            'devise' => 'EUR',
-            'cours' => 10.84,
-            'status' => 'pending',
-            'date_fixing' => now(),
+        $departement = Departement::create([
+            'direction_id' => $direction->id,
+            'libelle'      => 'Département Change',
+            'adresse'      => 'Conakry, Guinée',
+            'telephone'    => '+224 620 000 002',
+            'email'        => 'change@opteam.gn',
         ]);
 
-        Fixing::create([
-            'user_id' => $agent2->id,
-            'bureau_change_id' => $nord->id,
-            'devise' => 'USD',
-            'cours' => 9.97,
-            'status' => 'approved',
-            'validated_by' => $admin->id,
-            'validated_at' => now(),
-            'date_fixing' => now(),
+        $service = Service::create([
+            'departement_id' => $departement->id,
+            'libelle'        => 'Service Fixings',
+            'adresse'        => 'Conakry, Guinée',
+            'telephone'      => '+224 620 000 003',
+            'email'          => 'fixings@opteam.gn',
         ]);
 
+        // ── 4. Utilisateurs ───────────────────────────────────
+
+        // Admin principal
+        $admin = User::create([
+            'nom'                  => 'Administrateur',
+            'email'                => 'admin@opteam.gn',
+            'password'             => Hash::make('Admin@1234'),
+            'adresse'              => 'Conakry, Guinée',
+            'service_id'           => $service->id,
+            'role_id'              => $roleAdmin->id,
+            'is_active'            => true,
+            'must_change_password' => false, // Admin n'a pas besoin de changer
+        ]);
+
+        // Agent 1
+        User::create([
+            'nom'                  => 'Mamadou Diallo',
+            'email'                => 'mamadou@opteam.gn',
+            'password'             => Hash::make('00000000'),
+            'adresse'              => 'Conakry, Guinée',
+            'service_id'           => $service->id,
+            'role_id'              => $roleAgent->id,
+            'is_active'            => true,
+            'must_change_password' => true,
+        ]);
+
+        // Agent 2
+        User::create([
+            'nom'                  => 'Fatoumata Camara',
+            'email'                => 'fatoumata@opteam.gn',
+            'password'             => Hash::make('00000000'),
+            'adresse'              => 'Conakry, Guinée',
+            'service_id'           => $service->id,
+            'role_id'              => $roleAgent->id,
+            'is_active'            => true,
+            'must_change_password' => true,
+        ]);
+
+        // Superviseur
+        User::create([
+            'nom'                  => 'Ibrahim Soumah',
+            'email'                => 'ibrahim@opteam.gn',
+            'password'             => Hash::make('00000000'),
+            'adresse'              => 'Conakry, Guinée',
+            'service_id'           => $service->id,
+            'role_id'              => $roleSuperviseur->id,
+            'is_active'            => true,
+            'must_change_password' => true,
+        ]);
+
+        // ── 5. Audit log initial ──────────────────────────────
         AuditLog::create([
-            'user_id' => $admin->id,
-            'action' => 'seed',
-            'entity_type' => 'system',
-            'description' => 'Initial data',
+            'user_id'     => $admin->id,
+            'action'      => 'seed',
+            'entity_type' => 'System',
+            'entity_id'   => null,
+            'description' => 'Initialisation de la base de données',
         ]);
+
+        $this->command->info('✅ Base de données initialisée avec succès !');
+        $this->command->info('👤 Admin : admin@opteam.gn / Admin@1234');
+        $this->command->info('👤 Agents : mamadou@opteam.gn / 00000000');
     }
 }
