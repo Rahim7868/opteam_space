@@ -1,6 +1,7 @@
 import { Edit, Plus, Search, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import api, { getApiError } from '../api/client'
+import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
 import ErrorAlert from '../components/ErrorAlert'
 import SuccessAlert from '../components/SuccessAlert'
@@ -17,6 +18,7 @@ export default function Directions() {
   const [error, setError]     = useState('')
   const [success, setSuccess] = useState('')
   const [search, setSearch]   = useState('')
+  const [confirmModal, setConfirmModal] = useState({ open: false, id: null })
 
   useEffect(() => {
     api.get('/agences').then(({ data }) => setAgences(data.data ?? data))
@@ -49,7 +51,6 @@ export default function Directions() {
   }
 
   async function destroy(id) {
-    if (!window.confirm('Supprimer cette direction ?')) return
     try {
       await api.delete(`/directions/${id}`)
       setSuccess('Direction supprimée.')
@@ -91,7 +92,7 @@ export default function Directions() {
             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
             <Edit size={13} /> Modifier
           </button>
-          <button onClick={() => destroy(row.id)}
+          <button onClick={() => setConfirmModal({ open: true, id: row.id })}
             className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100">
             <Trash2 size={13} /> Supprimer
           </button>
@@ -104,8 +105,8 @@ export default function Directions() {
     <>
       <PageHeader title="Directions" subtitle="Gestion des directions par agence." />
 
-      <ErrorAlert message={error} />
-      <SuccessAlert message={success} />
+      <ErrorAlert message={error} onDismiss={() => setError('')} />
+      <SuccessAlert message={success} onDismiss={() => setSuccess('')} />
 
       <div className="mb-4">
         <div className="relative">
@@ -150,6 +151,18 @@ export default function Directions() {
       </form>
 
       <DataTable columns={columns} rows={filtered} loading={loading} />
+
+      <ConfirmModal
+        open={confirmModal.open}
+        title="Confirmer la suppression"
+        message="Cette action est irréversible."
+        danger={true}
+        onConfirm={async () => {
+          await destroy(confirmModal.id)
+          setConfirmModal({ open: false, id: null })
+        }}
+        onCancel={() => setConfirmModal({ open: false, id: null })}
+      />
     </>
   )
 }

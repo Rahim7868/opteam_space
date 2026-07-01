@@ -13,7 +13,8 @@ const emptyForm = {
 }
 
 export default function BureauChanges() {
-  const { hasPermission } = useAuth()
+  // ✅ Ajout de user
+  const { hasPermission, user } = useAuth()
 
   const canCreate   = hasPermission('creer_bureau_change')
   const canModify   = hasPermission('modifier_bureau_change')
@@ -28,7 +29,6 @@ export default function BureauChanges() {
   const [editing, setEditing] = useState(null)
   const [error, setError]     = useState('')
 
-  // Modal rejet
   const [rejectModal, setRejectModal] = useState({ open: false, id: null })
   const [commentaire, setCommentaire] = useState('')
 
@@ -103,7 +103,8 @@ export default function BureauChanges() {
       key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          {canModify && row.statut === 'en_attente' && (
+          {/* ✅ Modifier uniquement ses propres bureaux de change */}
+          {canModify && row.statut === 'en_attente' && row.createur?.id === user?.id && (
             <button
               onClick={() => startEdit(row)}
               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
@@ -139,7 +140,7 @@ export default function BureauChanges() {
         subtitle="Gestion et validation des bureaux de change."
       />
 
-      <ErrorAlert message={error} />
+      <ErrorAlert message={error} onDismiss={() => setError('')} />
 
       {/* Filtres */}
       <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px]">

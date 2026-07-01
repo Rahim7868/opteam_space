@@ -1,6 +1,7 @@
 import { Edit, Plus, Search, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import api, { getApiError } from '../api/client'
+import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
 import ErrorAlert from '../components/ErrorAlert'
 import SuccessAlert from '../components/SuccessAlert'
@@ -17,6 +18,7 @@ export default function Roles() {
   const [error, setError]         = useState('')
   const [success, setSuccess]     = useState('')
   const [search, setSearch]       = useState('')
+  const [confirmModal, setConfirmModal] = useState({ open: false, id: null })
 
   useEffect(() => {
     api.get('/permissions').then(({ data }) =>
@@ -60,7 +62,6 @@ export default function Roles() {
   }
 
   async function destroy(id) {
-    if (!window.confirm('Supprimer ce rôle ?')) return
     try {
       await api.delete(`/roles/${id}`)
       setSuccess('Rôle supprimé.')
@@ -127,7 +128,7 @@ export default function Roles() {
             <Edit size={13} /> Modifier
           </button>
           <button
-            onClick={() => destroy(row.id)}
+            onClick={() => setConfirmModal({ open: true, id: row.id })}
             className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100"
           >
             <Trash2 size={13} /> Supprimer
@@ -144,8 +145,8 @@ export default function Roles() {
         subtitle="Création et gestion des rôles et de leurs permissions."
       />
 
-      <ErrorAlert message={error} />
-      <SuccessAlert message={success} />
+      <ErrorAlert message={error} onDismiss={() => setError('')} />
+      <SuccessAlert message={success} onDismiss={() => setSuccess('')} />
 
       {/* Recherche */}
       <div className="mb-4">
@@ -225,6 +226,18 @@ export default function Roles() {
         columns={columns}
         rows={filtered}
         loading={loading}
+      />
+
+      <ConfirmModal
+        open={confirmModal.open}
+        title="Confirmer la suppression"
+        message="Cette action est irréversible."
+        danger={true}
+        onConfirm={async () => {
+          await destroy(confirmModal.id)
+          setConfirmModal({ open: false, id: null })
+        }}
+        onCancel={() => setConfirmModal({ open: false, id: null })}
       />
     </>
   )

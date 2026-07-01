@@ -91,18 +91,18 @@ class User extends Authenticatable
     /**
      * Toutes les permissions = rôle + individuelles (sans doublons)
      */
-    public function toutesLesPermissions()
-    {
-        $permissionsRole = $this->role
-            ? $this->role->permissions->pluck('libelle')
-            : collect();
+   public function toutesLesPermissions()
+{
+    $permissionsRole = $this->role
+        ? $this->role->permissions->pluck('libelle')
+        : collect();
 
-        $permissionsDirectes = $this->permissionsDirectes
-            ->pluck('libelle');
+    $permissionsDirectes = $this->permissionsDirectes
+        ->pluck('libelle');
 
-        // merge + unique pour éviter les doublons
-        return $permissionsRole->merge($permissionsDirectes)->unique();
-    }
+    //values() force un tableau indexé
+    return $permissionsRole->merge($permissionsDirectes)->unique()->values();
+}
 
     /**
      * Vérification simple : $user->hasPermission('creer_fixing')

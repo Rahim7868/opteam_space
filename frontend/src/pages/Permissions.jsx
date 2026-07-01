@@ -1,6 +1,7 @@
 import { Edit, Plus, Search, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import api, { getApiError } from '../api/client'
+import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
 import ErrorAlert from '../components/ErrorAlert'
 import SuccessAlert from '../components/SuccessAlert'
@@ -16,6 +17,7 @@ export default function Permissions() {
   const [error, setError]     = useState('')
   const [success, setSuccess] = useState('')
   const [search, setSearch]   = useState('')
+  const [confirmModal, setConfirmModal] = useState({ open: false, id: null })
 
   function load() {
     setLoading(true)
@@ -44,7 +46,6 @@ export default function Permissions() {
   }
 
   async function destroy(id) {
-    if (!window.confirm('Supprimer cette permission ?')) return
     try {
       await api.delete(`/permissions/${id}`)
       setSuccess('Permission supprimée.')
@@ -71,7 +72,7 @@ export default function Permissions() {
             <Edit size={13} /> Modifier
           </button>
           <button
-            onClick={() => destroy(row.id)}
+            onClick={() => setConfirmModal({ open: true, id: row.id })}
             className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100"
           >
             <Trash2 size={13} /> Supprimer
@@ -88,8 +89,8 @@ export default function Permissions() {
         subtitle="Gestion des permissions disponibles dans l'application."
       />
 
-      <ErrorAlert message={error} />
-      <SuccessAlert message={success} />
+      <ErrorAlert message={error} onDismiss={() => setError('')} />
+      <SuccessAlert message={success} onDismiss={() => setSuccess('')} />
 
       {/* Recherche + Formulaire inline */}
       <div className="mb-4 flex gap-3">
@@ -138,6 +139,18 @@ export default function Permissions() {
         columns={columns}
         rows={filtered}
         loading={loading}
+      />
+
+      <ConfirmModal
+        open={confirmModal.open}
+        title="Confirmer la suppression"
+        message="Cette action est irréversible."
+        danger={true}
+        onConfirm={async () => {
+          await destroy(confirmModal.id)
+          setConfirmModal({ open: false, id: null })
+        }}
+        onCancel={() => setConfirmModal({ open: false, id: null })}
       />
     </>
   )

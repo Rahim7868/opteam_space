@@ -66,6 +66,13 @@ class BureauChangeController extends Controller
             ], 403);
         }
 
+        // Vérifier que c'est bien son bureau de change
+        if ($bureauChange->created_by !== auth()->id()) {
+            return response()->json([
+                'message' => 'Vous ne pouvez modifier que vos propres bureaux de change.'
+            ], 403);
+        }
+
         $bureauChange->update($request->validated());
 
         AuditLogger::forModel(

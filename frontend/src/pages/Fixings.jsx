@@ -1,11 +1,10 @@
-import { Check, Plus, Search, X } from 'lucide-react'
+import { Check, Edit, Plus, Search, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import DataTable from '../components/DataTable'
 import ErrorAlert from '../components/ErrorAlert'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
-import ConfirmModal from '../components/ConfirmModal'
 import { useAuth } from '../context/AuthContext'
 
 const emptyForm = {
@@ -18,23 +17,21 @@ const emptyForm = {
 const currencies = ['EUR', 'USD', 'GBP', 'CAD', 'CHF', 'XOF']
 
 export default function Fixings() {
-  const { hasPermission } = useAuth()
+  // ✅ Ajout de user
+  const { hasPermission, user } = useAuth()
 
   const canCreate   = hasPermission('creer_fixing')
   const canModify   = hasPermission('modifier_fixing')
   const canValidate = hasPermission('valider_fixing')
   const canReject   = hasPermission('rejeter_fixing')
 
-  const [rows, setRows]     = useState([])
-  const [meta, setMeta]     = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [filters, setFilters] = useState({ statut: '', devise: '', page: 1 })
-  const [form, setForm]     = useState(emptyForm)
-  const [error, setError]   = useState('')
-
-  // Modal rejet
-  const [rejectModal, setRejectModal] = useState({ open: false, id: null })
-  const [commentaire, setCommentaire] = useState('')
+  const [rows, setRows]           = useState([])
+  const [meta, setMeta]           = useState(null)
+  const [loading, setLoading]     = useState(true)
+  const [filters, setFilters]     = useState({ statut: '', devise: '', page: 1 })
+  const [form, setForm]           = useState(emptyForm)
+  const [editingId, setEditingId] = useState(null)
+  const [error, setError]         = useState('')
 
   function load() {
     setLoading(true)
@@ -53,8 +50,15 @@ export default function Fixings() {
     setError('')
     const payload = new FormData()
     Object.entries(form).forEach(([k, v]) => { if (v) payload.append(k, v) })
+
     try {
-      await api.post('/fixings', payload)
+      if (editingId) {
+        payload.append('_method', 'PUT')
+        await api.post(`/fixings/${editingId}`, payload)
+        setEditingId(null)
+      } else {
+        await api.post('/fixings', payload)
+      }
       setForm(emptyForm)
       load()
     } catch (err) {
@@ -71,11 +75,9 @@ export default function Fixings() {
     }
   }
 
-  async function rejeter() {
+  async function rejeter(id) {
     try {
-      await api.post(`/fixings/${rejectModal.id}/rejeter`, { commentaire })
-      setRejectModal({ open: false, id: null })
-      setCommentaire('')
+      await api.post(`/fixings/${id}/rejeter`, {})
       load()
     } catch (err) {
       setError(getApiError(err))
@@ -90,10 +92,25 @@ export default function Fixings() {
       render: (row) => Number(row.cours).toFixed(4),
     },
     {
+      key: 'variation', label: 'Variation',
+      render: (row) => {
+        if (row.variation === null || row.variation === undefined) {
+          return <span className="text-slate-400 text-xs">—</span>
+        }
+        const v = Number(row.variation)
+        if (v === 0) return <span className="text-slate-500 text-xs">0.0000</span>
+        return (
+          <span className={`font-semibold text-xs ${v > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+            {v > 0 ? '+' : ''}{v.toFixed(4)}
+          </span>
+        )
+      },
+    },
+    {
       key: 'piece_jointe', label: 'Fichier',
       render: (row) => row.piece_jointe_url
         ? <a href={row.piece_jointe_url} target="_blank" rel="noreferrer"
-             className="text-teal-600 hover:underline text-xs">Voir</a>
+             className="text-teal-600 hover:underline text-xs">Voir fichier</a>
         : <span className="text-slate-400">—</span>,
     },
     {
@@ -108,6 +125,24 @@ export default function Fixings() {
       key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
+          {/* ✅ Modifier uniquement ses propres fixings */}
+          {canModify && row.statut === 'en_attente' && row.createur?.id === user?.id && (
+            <button
+              onClick={() => {
+                setEditingId(row.id)
+                setForm({
+                  date_fixing:  row.date_fixing,
+                  devise:       row.devise,
+                  cours:        row.cours,
+                  piece_jointe: null,
+                })
+                window.scrollTo({ top: 0, behavior: 'smooth' })
+              }}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            >
+              <Edit size={13} /> Modifier
+            </button>
+          )}
           {canValidate && row.statut === 'en_attente' && (
             <button
               onClick={() => valider(row.id)}
@@ -118,7 +153,7 @@ export default function Fixings() {
           )}
           {canReject && row.statut === 'en_attente' && (
             <button
-              onClick={() => setRejectModal({ open: true, id: row.id })}
+              onClick={() => rejeter(row.id)}
               className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100 transition"
             >
               <X size={13} /> Rejeter
@@ -136,10 +171,10 @@ export default function Fixings() {
         subtitle="Création et suivi des fixings de change."
       />
 
-      <ErrorAlert message={error} />
+      <ErrorAlert message={error} onDismiss={() => setError('')} />
 
       {/* Filtres */}
-      <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px_180px]">
+      <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px]">
         <div className="relative">
           <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
           <select
@@ -164,8 +199,8 @@ export default function Fixings() {
         </select>
       </div>
 
-      {/* Formulaire création */}
-      {canCreate && (
+      {/* Formulaire création/modification */}
+      {(canCreate || (canModify && editingId)) && (
         <form
           onSubmit={submit}
           className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm grid gap-3 md:grid-cols-4"
@@ -195,9 +230,21 @@ export default function Fixings() {
             accept=".pdf,.jpg,.jpeg,.png"
             onChange={(e) => setForm({ ...form, piece_jointe: e.target.files[0] })}
           />
-          <button className="btn btn-primary col-span-full md:col-span-4">
-            <Plus size={16} /> Ajouter un fixing
-          </button>
+          <div className="col-span-full flex gap-2">
+            <button className="btn btn-primary flex-1">
+              <Plus size={16} />
+              {editingId ? 'Enregistrer les modifications' : 'Ajouter un fixing'}
+            </button>
+            {editingId && (
+              <button
+                type="button"
+                onClick={() => { setEditingId(null); setForm(emptyForm) }}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                Annuler
+              </button>
+            )}
+          </div>
         </form>
       )}
 
@@ -209,35 +256,6 @@ export default function Fixings() {
         onPage={(page) => setFilters({ ...filters, page })}
       />
 
-      {/* Modal rejet */}
-      {rejectModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-800">Rejeter le fixing</h3>
-            <p className="mt-1 text-sm text-slate-500">Indiquez un motif de rejet (optionnel).</p>
-            <textarea
-              className="field mt-4 h-24 resize-none"
-              placeholder="Motif du rejet..."
-              value={commentaire}
-              onChange={(e) => setCommentaire(e.target.value)}
-            />
-            <div className="mt-4 flex justify-end gap-3">
-              <button
-                onClick={() => { setRejectModal({ open: false, id: null }); setCommentaire('') }}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={rejeter}
-                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
-              >
-                Confirmer le rejet
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }

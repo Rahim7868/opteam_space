@@ -8,6 +8,7 @@ use App\Models\Fixing;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Storage;
 
 class FixingController extends Controller
 {
@@ -25,15 +26,36 @@ class FixingController extends Controller
             $query->where('devise', request('devise'));
         }
 
-        return FixingResource::collection(
-            $query->paginate(request('per_page', 10))
-        );
+        $fixings = $query->paginate(request('per_page', 10));
+
+        // Calculer la variation dynamiquement sans colonne en base
+        $fixings->getCollection()->transform(function ($fixing) {
+            $precedent = Fixing::where('devise', $fixing->devise)
+                ->where('date_fixing', '<', $fixing->date_fixing)
+                ->latest('date_fixing')
+                ->first();
+
+            $fixing->variation = $precedent
+                ? round((float) $fixing->cours - (float) $precedent->cours, 6)
+                : null;
+
+            return $fixing;
+        });
+
+        return FixingResource::collection($fixings);
     }
 
     public function store(FixingRequest $request): FixingResource
     {
+        $data = $request->validated();
+
+        if ($request->hasFile('piece_jointe')) {
+            $data['piece_jointe'] = $request->file('piece_jointe')
+                ->store('fixings', 'public');
+        }
+
         $fixing = Fixing::create([
-            ...$request->validated(),
+            ...$data,
             'created_by' => auth()->id(),
             'statut'     => 'en_attente',
         ]);
@@ -60,7 +82,24 @@ class FixingController extends Controller
             ], 403);
         }
 
-        $fixing->update($request->validated());
+        // Vérifier que c'est bien son fixing
+        if ($fixing->created_by !== auth()->id()) {
+            return response()->json([
+                'message' => 'Vous ne pouvez modifier que vos propres fixings.'
+            ], 403);
+        }
+
+        $data = $request->validated();
+
+        if ($request->hasFile('piece_jointe')) {
+            if ($fixing->piece_jointe) {
+                Storage::disk('public')->delete($fixing->piece_jointe);
+            }
+            $data['piece_jointe'] = $request->file('piece_jointe')
+                ->store('fixings', 'public');
+        }
+
+        $fixing->update($data);
 
         AuditLogger::forModel(
             'fixing_updated',
@@ -96,10 +135,6 @@ class FixingController extends Controller
 
     public function rejeter(Fixing $fixing): JsonResponse
     {
-        request()->validate([
-            'commentaire' => ['nullable', 'string'],
-        ]);
-
         if (!$fixing->isEditable()) {
             return response()->json(['message' => 'Déjà traité.'], 403);
         }
@@ -107,7 +142,6 @@ class FixingController extends Controller
         $fixing->update([
             'statut'       => 'rejete',
             'validated_by' => auth()->id(),
-            'commentaire'  => request('commentaire'),
         ]);
 
         AuditLogger::forModel(

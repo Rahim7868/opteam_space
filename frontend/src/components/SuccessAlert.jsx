@@ -1,4 +1,16 @@
-export default function SuccessAlert({ message }) {
+import { useEffect } from 'react'
+
+export default function SuccessAlert({ message, onDismiss }) {
+  useEffect(() => {
+    if (!message) return undefined
+
+    const timer = setTimeout(() => {
+      onDismiss?.()
+    }, 3000)
+
+    return () => clearTimeout(timer)
+  }, [message, onDismiss])
+
   if (!message) return null
 
   return (

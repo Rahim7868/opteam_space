@@ -53,7 +53,7 @@ export default function ChangePassword() {
           </p>
         </div>
 
-        <ErrorAlert message={error} />
+        <ErrorAlert message={error} onDismiss={() => setError('')} />
 
         <form className="space-y-4" onSubmit={submit}>
           <label className="block text-sm font-semibold text-slate-700">

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
@@ -10,19 +11,26 @@ use App\Http\Controllers\DepartementController;
 use App\Http\Controllers\ServiceController;
 use App\Http\Controllers\FixingController;
 use App\Http\Controllers\BureauChangeController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\AuditLogController;
 use Illuminate\Support\Facades\Route;
 
-// ── Auth publique ──────────────────────────────────────────────
-Route::post('/auth/login', [AuthController::class, 'login']);
+// ── Auth publique avec rate limiting strict ────────────────────
+// ✅ Maximum 5 tentatives par minute par IP
+Route::middleware('throttle:5,1')->group(function () {
+    Route::post('/auth/login', [AuthController::class, 'login']);
+});
 
 // ── Auth protégée ─────────────────────────────────────────────
 Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/auth/me',      [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
-
-    // Première connexion uniquement
     Route::post('/auth/change-password', [AuthController::class, 'changePassword']);
+    Route::put('/profile/password', [ProfileController::class, 'updatePassword']);
+
+    // ── Dashboard ──────────────────────────────────────────────
+    Route::get('/dashboard', DashboardController::class);
 
     // ── Structure organisationnelle ────────────────────────────
     Route::apiResource('agences',      AgenceController::class);
@@ -48,4 +56,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('bureau-changes', BureauChangeController::class);
     Route::post('/bureau-changes/{bureauChange}/valider', [BureauChangeController::class, 'valider']);
     Route::post('/bureau-changes/{bureauChange}/rejeter', [BureauChangeController::class, 'rejeter']);
+
+    // ── Audit logs ─────────────────────────────────────────────
+    Route::get('/audit-logs', [AuditLogController::class, 'index']);
 });

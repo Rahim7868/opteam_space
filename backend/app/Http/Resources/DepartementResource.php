@@ -17,7 +17,7 @@ class DepartementResource extends JsonResource
             'email'     => $this->email,
 
             'direction' => $this->whenLoaded('direction', fn() => [
-                'id'      => $this->direction->id,
+                'id'      => $this->direction->id,      
                 'libelle' => $this->direction->libelle,
                 'agence'  => $this->direction->agence
                     ? ['id' => $this->direction->agence->id,

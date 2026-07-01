@@ -5,6 +5,7 @@ import AppLayout from './layouts/AppLayout'
 // Auth
 import Login          from './pages/Login'
 import ChangePassword from './pages/ChangePassword'
+import Profile from './pages/Profile'
 
 // Dashboard
 import Dashboard from './pages/Dashboard'
@@ -40,6 +41,8 @@ export default function App() {
         <Route element={<AppLayout />}>
 
           <Route index element={<Dashboard />} />
+
+          <Route path="profile" element={<Profile />} />
 
           <Route path="fixings"
             element={<ProtectedRoute permission="creer_fixing" />}>

@@ -13,10 +13,10 @@ const emptyForm = {
 }
 
 export default function Users() {
-  const [rows, setRows]       = useState([])
-  const [meta, setMeta]       = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [roles, setRoles]     = useState([])
+  const [rows, setRows]         = useState([])
+  const [meta, setMeta]         = useState(null)
+  const [loading, setLoading]   = useState(true)
+  const [roles, setRoles]       = useState([])
   const [services, setServices] = useState([])
 
   const [filters, setFilters] = useState({ search: '', role_id: '', is_active: '', page: 1 })
@@ -26,9 +26,11 @@ export default function Users() {
   const [success, setSuccess] = useState('')
 
   // Modal permissions
-  const [permModal, setPermModal]       = useState({ open: false, user: null })
+  const [permModal, setPermModal]           = useState({ open: false, user: null })
   const [allPermissions, setAllPermissions] = useState([])
   const [selectedPerms, setSelectedPerms]   = useState([])
+  const [rolePerms, setRolePerms]           = useState([]) // permissions du rôle
+  const [loadingPerms, setLoadingPerms]     = useState(false)
 
   useEffect(() => {
     api.get('/roles').then(({ data }) => setRoles(data.data ?? data))
@@ -88,18 +90,36 @@ export default function Users() {
 
   function openPermModal(user) {
     setPermModal({ open: true, user })
-    // Pré-cocher les permissions directes de l'utilisateur
+    setLoadingPerms(true)
+    setSelectedPerms([])
+    setRolePerms([])
+
     api.get(`/users/${user.id}`)
       .then(({ data }) => {
         const u = data.data ?? data
-        setSelectedPerms(u.permissions ?? [])
+
+        // ✅ Permissions du rôle → pour affichage info
+        const permsRole = u.role?.permissions?.map(p => p.libelle) ?? []
+        setRolePerms(permsRole)
+
+        // ✅ Pré-cocher toutes_permissions (rôle + directes)
+        const toutesPerms = Array.isArray(u.toutes_permissions)
+          ? u.toutes_permissions
+          : Object.values(u.toutes_permissions ?? {})
+        setSelectedPerms(toutesPerms)
       })
+      .finally(() => setLoadingPerms(false))
   }
 
   async function savePermissions() {
+    // On sauvegarde uniquement les permissions directes
+    // = permissions cochées qui ne viennent PAS du rôle
+    const directesLibelles = selectedPerms.filter(p => !rolePerms.includes(p))
+
     const ids = allPermissions
-      .filter((p) => selectedPerms.includes(p.libelle))
+      .filter((p) => directesLibelles.includes(p.libelle))
       .map((p) => p.id)
+
     try {
       await api.post(`/users/${permModal.user.id}/permissions`, { permission_ids: ids })
       setSuccess('Permissions mises à jour.')
@@ -110,6 +130,9 @@ export default function Users() {
   }
 
   function togglePerm(libelle) {
+    // ✅ Les permissions du rôle ne peuvent pas être décochées
+    if (rolePerms.includes(libelle)) return
+
     setSelectedPerms((prev) =>
       prev.includes(libelle)
         ? prev.filter((p) => p !== libelle)
@@ -158,7 +181,10 @@ export default function Users() {
                 : 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100'
             }`}
           >
-            {row.is_active ? <><ToggleRight size={13} /> Désactiver</> : <><ToggleLeft size={13} /> Activer</>}
+            {row.is_active
+              ? <><ToggleRight size={13} /> Désactiver</>
+              : <><ToggleLeft size={13} /> Activer</>
+            }
           </button>
         </div>
       ),
@@ -172,8 +198,8 @@ export default function Users() {
         subtitle="Création et gestion des comptes utilisateurs."
       />
 
-      <ErrorAlert message={error} />
-      <SuccessAlert message={success} />
+      <ErrorAlert message={error} onDismiss={() => setError('')} />
+      <SuccessAlert message={success} onDismiss={() => setSuccess('')} />
 
       {/* Filtres */}
       <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px_180px]">
@@ -214,38 +240,22 @@ export default function Users() {
           {editing ? 'Modifier un acteur' : 'Ajouter un acteur'}
         </h3>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          <input
-            className="field"
-            placeholder="Nom complet"
+          <input className="field" placeholder="Nom complet"
             value={form.nom}
-            onChange={(e) => setForm({ ...form, nom: e.target.value })}
-          />
-          <input
-            className="field"
-            type="email"
-            placeholder="Email"
+            onChange={(e) => setForm({ ...form, nom: e.target.value })} />
+          <input className="field" type="email" placeholder="Email"
             value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-          />
-          <input
-            className="field"
-            placeholder="Adresse (optionnel)"
+            onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          <input className="field" placeholder="Adresse (optionnel)"
             value={form.adresse}
-            onChange={(e) => setForm({ ...form, adresse: e.target.value })}
-          />
-          <select
-            className="field"
-            value={form.role_id}
-            onChange={(e) => setForm({ ...form, role_id: e.target.value })}
-          >
+            onChange={(e) => setForm({ ...form, adresse: e.target.value })} />
+          <select className="field" value={form.role_id}
+            onChange={(e) => setForm({ ...form, role_id: e.target.value })}>
             <option value="">Sélectionner un rôle</option>
             {roles.map((r) => <option key={r.id} value={r.id}>{r.libelle}</option>)}
           </select>
-          <select
-            className="field"
-            value={form.service_id}
-            onChange={(e) => setForm({ ...form, service_id: e.target.value })}
-          >
+          <select className="field" value={form.service_id}
+            onChange={(e) => setForm({ ...form, service_id: e.target.value })}>
             <option value="">Sélectionner un service</option>
             {services.map((s) => <option key={s.id} value={s.id}>{s.libelle}</option>)}
           </select>
@@ -253,7 +263,8 @@ export default function Users() {
 
         {!editing && (
           <p className="mt-2 text-xs text-slate-400">
-            Le mot de passe initial sera <span className="font-mono font-semibold">00000000</span>.
+            Le mot de passe initial sera{' '}
+            <span className="font-mono font-semibold">00000000</span>.
             L'acteur devra le changer à sa première connexion.
           </p>
         )}
@@ -261,14 +272,12 @@ export default function Users() {
         <div className="mt-3 flex gap-2">
           <button className="btn btn-primary">
             <Plus size={16} />
-            {editing ? 'Enregistrer les modifications' : 'Créer l\'acteur'}
+            {editing ? 'Enregistrer les modifications' : "Créer l'acteur"}
           </button>
           {editing && (
-            <button
-              type="button"
+            <button type="button"
               onClick={() => { setEditing(null); setForm(emptyForm) }}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-            >
+              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
               Annuler
             </button>
           )}
@@ -288,30 +297,53 @@ export default function Users() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
             <h3 className="text-lg font-semibold text-slate-800">
-              Permissions de <span className="text-teal-700">{permModal.user?.nom}</span>
+              Permissions de{' '}
+              <span className="text-teal-700">{permModal.user?.nom}</span>
             </h3>
             <p className="mt-1 text-sm text-slate-500">
-              Cochez les permissions individuelles à attribuer à cet acteur.
+              Les permissions grisées viennent du rôle et ne peuvent pas être retirées ici.
             </p>
 
-            <div className="mt-4 max-h-72 overflow-y-auto space-y-2">
-              {allPermissions.map((perm) => (
-                <label
-                  key={perm.id}
-                  className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-slate-50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedPerms.includes(perm.libelle)}
-                    onChange={() => togglePerm(perm.libelle)}
-                    className="h-4 w-4 rounded border-slate-300 text-teal-600"
-                  />
-                  <span className="text-sm font-medium text-slate-700">
-                    {perm.libelle}
-                  </span>
-                </label>
-              ))}
-            </div>
+            {loadingPerms ? (
+              <div className="mt-4 flex justify-center py-8">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-teal-600" />
+              </div>
+            ) : (
+              <div className="mt-4 max-h-72 overflow-y-auto space-y-1">
+                {allPermissions.map((perm) => {
+                  const isFromRole   = rolePerms.includes(perm.libelle)
+                  const isChecked    = selectedPerms.includes(perm.libelle)
+
+                  return (
+                    <label
+                      key={perm.id}
+                      className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 ${
+                        isFromRole
+                          ? 'cursor-not-allowed opacity-60 bg-slate-50'
+                          : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => togglePerm(perm.libelle)}
+                        disabled={isFromRole}
+                        className="h-4 w-4 rounded border-slate-300 text-teal-600"
+                      />
+                      <span className="text-sm font-medium text-slate-700">
+                        {perm.libelle}
+                      </span>
+                      {/* ✅ Badge indiquant que c'est une permission du rôle */}
+                      {isFromRole && (
+                        <span className="ml-auto rounded-full bg-teal-50 px-2 py-0.5 text-xs text-teal-600 ring-1 ring-teal-200">
+                          Rôle
+                        </span>
+                      )}
+                    </label>
+                  )
+                })}
+              </div>
+            )}
 
             <div className="mt-5 flex justify-end gap-3">
               <button

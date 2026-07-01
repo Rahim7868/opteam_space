@@ -9,6 +9,7 @@ import {
   Menu,
   Network,
   Shield,
+  UserCog,
   Users,
   X,
 } from 'lucide-react'
@@ -236,13 +237,29 @@ export default function AppLayout() {
             </div>
           </div>
 
-          <button
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-rose-600"
-            onClick={logout}
-          >
-            <LogOut size={16} />
-            Déconnexion
-          </button>
+          <div className="grid grid-cols-2 gap-2">
+            <NavLink
+              to="/profile"
+              onClick={() => setSidebarOpen(false)}
+              className={({ isActive }) =>
+                `flex items-center justify-center gap-2 rounded-lg border border-slate-200 py-2 text-sm font-medium transition ${
+                  isActive
+                    ? 'bg-teal-50 text-teal-800'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                }`
+              }
+            >
+              <UserCog size={16} />
+              Profil
+            </NavLink>
+            <button
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-rose-600"
+              onClick={logout}
+            >
+              <LogOut size={16} />
+              Déconnexion
+            </button>
+          </div>
         </div>
       </aside>
 

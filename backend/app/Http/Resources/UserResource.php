@@ -37,7 +37,7 @@ class UserResource extends JsonResource
             ),
 
             // Toutes les permissions (rôle + directes)
-            'toutes_permissions' => $this->toutesLesPermissions(),
+           'toutes_permissions' => array_values($this->toutesLesPermissions()->toArray()),
         ];
     }
 }

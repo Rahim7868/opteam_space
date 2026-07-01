@@ -1,6 +1,6 @@
 <?php
 
-use App\Http\Middleware\EnsureRole;
+use App\Http\Middleware\EnsurePermission;
 use App\Http\Middleware\ForceJsonResponse;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -15,17 +15,17 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->alias([
-            'role' => EnsureRole::class,
-        ]); 
 
-        // Forcer le format JSON pour toutes les requêtes API
+        $middleware->alias([
+            'permission' => EnsurePermission::class,
+        ]);
+
         $middleware->api(prepend: [
             ForceJsonResponse::class,
         ]);
 
-        // Ajouter le middleware CORS pour autoriser les requêtes du frontend React
         $middleware->prepend(HandleCors::class);
+
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

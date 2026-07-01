@@ -16,33 +16,33 @@ class FixingResource extends JsonResource
             'devise'      => $this->devise,
             'cours'       => (float) $this->cours,
 
+            //Variation calculée dynamiquement
+            'variation' => isset($this->variation)
+                ? (float) $this->variation
+                : null,
+
             // Pièce jointe
             'piece_jointe'     => $this->piece_jointe,
             'piece_jointe_url' => $this->piece_jointe
-                ? Storage::url($this->piece_jointe)
+                ? Storage::disk('public')->url($this->piece_jointe)
                 : null,
 
-            // Statut et traitement
-            'statut'      => $this->statut,       // ✏️ status → statut
-            'commentaire' => $this->commentaire,   // ✏️ rejection_reason → commentaire
+            'statut'      => $this->statut,
+            'commentaire' => $this->commentaire,
 
-            // Qui a créé
             'createur' => $this->whenLoaded('createur', fn() => [
                 'id'  => $this->createur->id,
                 'nom' => $this->createur->nom,
             ]),
 
-            // Qui a validé/rejeté
             'validateur' => $this->whenLoaded('validateur', fn() => [
                 'id'  => $this->validateur->id,
                 'nom' => $this->validateur->nom,
             ]),
 
-            // Indique si encore modifiable
             'is_editable' => $this->isEditable(),
-
-            'created_at' => $this->created_at?->toISOString(),
-            'updated_at' => $this->updated_at?->toISOString(),
+            'created_at'  => $this->created_at?->toISOString(),
+            'updated_at'  => $this->updated_at?->toISOString(),
         ];
     }
 }
