@@ -20,7 +20,7 @@ class DashboardController extends Controller
         // ── Fixings ───────────────────────────────────────────
         $fixingsQuery = Fixing::query();
 
-        // ✅ Agent → seulement ses propres fixings
+        // Agent → seulement ses propres fixings
         if (!$peutVoirTout) {
             $fixingsQuery->where('created_by', $user->id);
         }

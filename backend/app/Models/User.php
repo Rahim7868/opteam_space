@@ -49,6 +49,11 @@ class User extends Authenticatable
         return $this->belongsToMany(Permission::class, 'permission_user');
     }
 
+    public function permissionsRetirees(): BelongsToMany
+    {
+        return $this->belongsToMany(Permission::class, 'permission_user_denied');
+    }
+
     public function fixingsCrees(): HasMany
     {
         return $this->hasMany(Fixing::class, 'created_by');
@@ -89,20 +94,26 @@ class User extends Authenticatable
     // ── Logique des permissions (le cœur du système) ──────────
 
     /**
-     * Toutes les permissions = rôle + individuelles (sans doublons)
+     * Toutes les permissions effectives de cet acteur :
+     * (permissions du rôle ∪ permissions directes) − permissions retirées
+     *
+     * Les exceptions sont propres à l'acteur et ne touchent jamais le rôle.
      */
-   public function toutesLesPermissions()
-{
-    $permissionsRole = $this->role
-        ? $this->role->permissions->pluck('libelle')
-        : collect();
+    public function toutesLesPermissions()
+    {
+        $permissionsRole = $this->role
+            ? $this->role->permissions->pluck('libelle')
+            : collect();
 
-    $permissionsDirectes = $this->permissionsDirectes
-        ->pluck('libelle');
+        $permissionsDirectes = $this->permissionsDirectes->pluck('libelle');
+        $permissionsRetirees = $this->permissionsRetirees->pluck('libelle');
 
-    //values() force un tableau indexé
-    return $permissionsRole->merge($permissionsDirectes)->unique()->values();
-}
+        return $permissionsRole
+            ->merge($permissionsDirectes)
+            ->unique()
+            ->diff($permissionsRetirees)
+            ->values();
+    }
 
     /**
      * Vérification simple : $user->hasPermission('creer_fixing')

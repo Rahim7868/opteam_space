@@ -31,13 +31,26 @@ class UserResource extends JsonResource
             'direction'   => $this->direction?->libelle,
             'agence'      => $this->agence?->libelle,
 
-            // Permissions directes
+            // Permissions directes (ajoutées manuellement à cet acteur)
             'permissions' => $this->whenLoaded('permissionsDirectes',
                 fn() => $this->permissionsDirectes->pluck('libelle')
             ),
 
-            // Toutes les permissions (rôle + directes)
-           'toutes_permissions' => array_values($this->toutesLesPermissions()->toArray()),
+            // Hiérarchie complète avec IDs pour le formulaire dépendant
+            'hierarchie' => $this->service ? [
+                'agence_id'      => $this->service->departement?->direction?->agence_id,
+                'direction_id'   => $this->service->departement?->direction_id,
+                'departement_id' => $this->service->departement_id,
+                'service_id'     => $this->service->id,
+            ] : null,
+
+            // Permissions retirées individuellement à cet acteur
+            'permissions_retirees' => $this->whenLoaded('permissionsRetirees',
+                fn() => $this->permissionsRetirees->pluck('libelle')
+            ),
+
+            // Toutes les permissions effectives : (rôle ∪ directes) − retirées
+            'toutes_permissions' => array_values($this->toutesLesPermissions()->toArray()),
         ];
     }
 }

@@ -9,7 +9,8 @@ import StatusBadge from '../components/StatusBadge'
 
 const emptyForm = {
   nom: '', email: '', adresse: '',
-  service_id: '', role_id: '',
+  agence_id: '', direction_id: '', departement_id: '', service_id: '',
+  role_id: '',
 }
 
 export default function Users() {
@@ -17,7 +18,10 @@ export default function Users() {
   const [meta, setMeta]         = useState(null)
   const [loading, setLoading]   = useState(true)
   const [roles, setRoles]       = useState([])
-  const [services, setServices] = useState([])
+  const [agences, setAgences]         = useState([])
+  const [directions, setDirections]   = useState([])
+  const [departements, setDepartements] = useState([])
+  const [services, setServices]       = useState([])
 
   const [filters, setFilters] = useState({ search: '', role_id: '', is_active: '', page: 1 })
   const [form, setForm]       = useState(emptyForm)
@@ -34,7 +38,7 @@ export default function Users() {
 
   useEffect(() => {
     api.get('/roles').then(({ data }) => setRoles(data.data ?? data))
-    api.get('/services').then(({ data }) => setServices(data.data ?? data))
+    api.get('/agences', { params: { per_page: 1000 } }).then(({ data }) => setAgences(data.data ?? data))
     api.get('/permissions').then(({ data }) => setAllPermissions(data.data ?? data))
   }, [])
 
@@ -50,6 +54,74 @@ export default function Users() {
 
   useEffect(load, [filters])
 
+  async function handleAgenceChange(agenceId) {
+    setForm(prev => ({
+      ...prev,
+      agence_id: agenceId,
+      direction_id: '',
+      departement_id: '',
+      service_id: '',
+    }))
+    setDirections([])
+    setDepartements([])
+    setServices([])
+
+    if (agenceId) {
+      try {
+        const { data } = await api.get('/directions', { params: { agence_id: agenceId, per_page: 1000 } })
+        setDirections(data.data ?? data)
+      } catch (err) {
+        setError(getApiError(err))
+      }
+    }
+  }
+
+  async function handleDirectionChange(directionId) {
+    setForm(prev => ({
+      ...prev,
+      direction_id: directionId,
+      departement_id: '',
+      service_id: '',
+    }))
+    setDepartements([])
+    setServices([])
+
+    if (directionId) {
+      try {
+        const { data } = await api.get('/departements', { params: { direction_id: directionId, per_page: 1000 } })
+        setDepartements(data.data ?? data)
+      } catch (err) {
+        setError(getApiError(err))
+      }
+    }
+  }
+
+  async function handleDepartementChange(departementId) {
+    setForm(prev => ({
+      ...prev,
+      departement_id: departementId,
+      service_id: '',
+    }))
+    setServices([])
+
+    if (departementId) {
+      try {
+        const { data } = await api.get('/services', { params: { departement_id: departementId, per_page: 1000 } })
+        setServices(data.data ?? data)
+      } catch (err) {
+        setError(getApiError(err))
+      }
+    }
+  }
+
+  function resetForm() {
+    setForm(emptyForm)
+    setDirections([])
+    setDepartements([])
+    setServices([])
+    setEditing(null)
+  }
+
   async function submit(e) {
     e.preventDefault()
     setError(''); setSuccess('')
@@ -61,7 +133,8 @@ export default function Users() {
         await api.post('/users', form)
         setSuccess('Acteur créé. Mot de passe initial : 00000000')
       }
-      setForm(emptyForm); setEditing(null); load()
+      resetForm()
+      load()
     } catch (err) {
       setError(getApiError(err))
     }
@@ -76,15 +149,47 @@ export default function Users() {
     }
   }
 
-  function startEdit(user) {
+  async function startEdit(user) {
     setEditing(user.id)
+    
+    const h = user.hierarchie || {}
+    
     setForm({
       nom:        user.nom,
       email:      user.email,
       adresse:    user.adresse ?? '',
-      service_id: user.service?.id ?? '',
+      agence_id:  h.agence_id ?? '',
+      direction_id: h.direction_id ?? '',
+      departement_id: h.departement_id ?? '',
+      service_id: h.service_id ?? '',
       role_id:    user.role?.id ?? '',
     })
+
+    try {
+      if (h.agence_id) {
+        const { data } = await api.get('/directions', { params: { agence_id: h.agence_id, per_page: 1000 } })
+        setDirections(data.data ?? data)
+      } else {
+        setDirections([])
+      }
+
+      if (h.direction_id) {
+        const { data } = await api.get('/departements', { params: { direction_id: h.direction_id, per_page: 1000 } })
+        setDepartements(data.data ?? data)
+      } else {
+        setDepartements([])
+      }
+
+      if (h.departement_id) {
+        const { data } = await api.get('/services', { params: { departement_id: h.departement_id, per_page: 1000 } })
+        setServices(data.data ?? data)
+      } else {
+        setServices([])
+      }
+    } catch (err) {
+      console.error(err)
+    }
+
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -254,8 +359,26 @@ export default function Users() {
             <option value="">Sélectionner un rôle</option>
             {roles.map((r) => <option key={r.id} value={r.id}>{r.libelle}</option>)}
           </select>
+          <select className="field" value={form.agence_id}
+            onChange={(e) => handleAgenceChange(e.target.value)}>
+            <option value="">Sélectionner une agence</option>
+            {agences.map((a) => <option key={a.id} value={a.id}>{a.libelle}</option>)}
+          </select>
+          <select className="field" value={form.direction_id}
+            onChange={(e) => handleDirectionChange(e.target.value)}
+            disabled={!form.agence_id}>
+            <option value="">Sélectionner une direction</option>
+            {directions.map((d) => <option key={d.id} value={d.id}>{d.libelle}</option>)}
+          </select>
+          <select className="field" value={form.departement_id}
+            onChange={(e) => handleDepartementChange(e.target.value)}
+            disabled={!form.direction_id}>
+            <option value="">Sélectionner un département</option>
+            {departements.map((d) => <option key={d.id} value={d.id}>{d.libelle}</option>)}
+          </select>
           <select className="field" value={form.service_id}
-            onChange={(e) => setForm({ ...form, service_id: e.target.value })}>
+            onChange={(e) => setForm({ ...form, service_id: e.target.value })}
+            disabled={!form.departement_id}>
             <option value="">Sélectionner un service</option>
             {services.map((s) => <option key={s.id} value={s.id}>{s.libelle}</option>)}
           </select>
@@ -276,7 +399,7 @@ export default function Users() {
           </button>
           {editing && (
             <button type="button"
-              onClick={() => { setEditing(null); setForm(emptyForm) }}
+              onClick={resetForm}
               className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
               Annuler
             </button>

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import DataTable from '../components/DataTable'
 import ErrorAlert from '../components/ErrorAlert'
+import SuccessAlert from '../components/SuccessAlert'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
 import { useAuth } from '../context/AuthContext'
@@ -32,6 +33,7 @@ export default function Fixings() {
   const [form, setForm]           = useState(emptyForm)
   const [editingId, setEditingId] = useState(null)
   const [error, setError]         = useState('')
+  const [success, setSuccess]     = useState('')
 
   function load() {
     setLoading(true)
@@ -48,6 +50,7 @@ export default function Fixings() {
   async function submit(e) {
     e.preventDefault()
     setError('')
+    setSuccess('')
     const payload = new FormData()
     Object.entries(form).forEach(([k, v]) => { if (v) payload.append(k, v) })
 
@@ -56,8 +59,10 @@ export default function Fixings() {
         payload.append('_method', 'PUT')
         await api.post(`/fixings/${editingId}`, payload)
         setEditingId(null)
+        setSuccess('Fixing modifié avec succès.')
       } else {
         await api.post('/fixings', payload)
+        setSuccess('Fixing créé avec succès.')
       }
       setForm(emptyForm)
       load()
@@ -172,6 +177,7 @@ export default function Fixings() {
       />
 
       <ErrorAlert message={error} onDismiss={() => setError('')} />
+      <SuccessAlert message={success} onDismiss={() => setSuccess('')} />
 
       {/* Filtres */}
       <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px]">

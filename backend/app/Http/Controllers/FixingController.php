@@ -31,8 +31,15 @@ class FixingController extends Controller
         // Calculer la variation dynamiquement sans colonne en base
         $fixings->getCollection()->transform(function ($fixing) {
             $precedent = Fixing::where('devise', $fixing->devise)
-                ->where('date_fixing', '<', $fixing->date_fixing)
-                ->latest('date_fixing')
+                ->where(function ($query) use ($fixing) {
+                    $query->where('date_fixing', '<', $fixing->date_fixing)
+                        ->orWhere(function ($q) use ($fixing) {
+                            $q->where('date_fixing', $fixing->date_fixing)
+                              ->where('id', '<', $fixing->id);
+                        });
+                })
+                ->orderBy('date_fixing', 'desc')
+                ->orderBy('id', 'desc')
                 ->first();
 
             $fixing->variation = $precedent

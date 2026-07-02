@@ -61,7 +61,7 @@ class UserController extends Controller
     public function show(User $user): UserResource
     {
         return new UserResource(
-            $user->load('role', 'service', 'permissionsDirectes')
+            $user->load('role', 'service', 'permissionsDirectes', 'permissionsRetirees')
         );
     }
 
@@ -100,11 +100,21 @@ class UserController extends Controller
     public function assignPermissions(User $user): JsonResponse
     {
         request()->validate([
-            'permission_ids'   => ['required', 'array'],
+            'permission_ids'   => ['nullable', 'array'],
             'permission_ids.*' => ['exists:permissions,id'],
+            'denied_ids'       => ['nullable', 'array'],
+            'denied_ids.*'     => ['exists:permissions,id'],
         ]);
 
-        $user->permissionsDirectes()->sync(request('permission_ids'));
+        $grantedIds = collect(request('permission_ids', []));
+        $deniedIds  = collect(request('denied_ids', []));
+
+        // Une permission ne peut pas être dans les deux listes en même temps
+        // En cas de conflit, la liste "directes" l'emporte (on la retire des refus)
+        $deniedIds = $deniedIds->diff($grantedIds)->values();
+
+        $user->permissionsDirectes()->sync($grantedIds->toArray());
+        $user->permissionsRetirees()->sync($deniedIds->toArray());
 
         AuditLogger::forModel(
             'permissions_updated',
@@ -113,8 +123,7 @@ class UserController extends Controller
         );
 
         return response()->json([
-            'message'     => 'Permissions mises à jour.',
-            'permissions' => $user->permissionsDirectes()->pluck('libelle'),
+            'message' => 'Permissions mises à jour.',
         ]);
     }
 }

@@ -14,8 +14,9 @@ class BureauChangeRequest extends FormRequest
 
     public function rules(): array
     {
-        // Récupère l'objet bureau_change si on est en update
-        $bureauChange = $this->route('bureauChange');
+        // Récupère l'objet ou l'ID de bureau_change si on est en update
+        $bureauChange = $this->route('bureau_change') ?? $this->route('bureauChange');
+        $bureauChangeId = is_object($bureauChange) ? $bureauChange->id : $bureauChange;
 
         return [
             'designation' => ['required', 'string', 'max:255'],
@@ -25,7 +26,7 @@ class BureauChangeRequest extends FormRequest
                 'string',
                 'max:100',
                 Rule::unique('bureau_changes', 'numero_agrement')
-                    ->ignore($bureauChange?->id),
+                    ->ignore($bureauChangeId),
             ],
 
             'representant_legal' => ['required', 'string', 'max:255'],

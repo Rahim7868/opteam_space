@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import DataTable from '../components/DataTable'
 import ErrorAlert from '../components/ErrorAlert'
+import SuccessAlert from '../components/SuccessAlert'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
 import { useAuth } from '../context/AuthContext'
@@ -28,9 +29,7 @@ export default function BureauChanges() {
   const [form, setForm]       = useState(emptyForm)
   const [editing, setEditing] = useState(null)
   const [error, setError]     = useState('')
-
-  const [rejectModal, setRejectModal] = useState({ open: false, id: null })
-  const [commentaire, setCommentaire] = useState('')
+  const [success, setSuccess] = useState('')
 
   function load() {
     setLoading(true)
@@ -47,9 +46,15 @@ export default function BureauChanges() {
   async function submit(e) {
     e.preventDefault()
     setError('')
+    setSuccess('')
     try {
-      if (editing) await api.put(`/bureau-changes/${editing}`, form)
-      else         await api.post('/bureau-changes', form)
+      if (editing) {
+        await api.put(`/bureau-changes/${editing}`, form)
+        setSuccess('Bureau de change modifié avec succès.')
+      } else {
+        await api.post('/bureau-changes', form)
+        setSuccess('Bureau de change créé avec succès.')
+      }
       setForm(emptyForm); setEditing(null); load()
     } catch (err) {
       setError(getApiError(err))
@@ -65,10 +70,10 @@ export default function BureauChanges() {
     }
   }
 
-  async function rejeter() {
+  async function rejeter(id) {
     try {
-      await api.post(`/bureau-changes/${rejectModal.id}/rejeter`, { commentaire })
-      setRejectModal({ open: false, id: null }); setCommentaire(''); load()
+      await api.post(`/bureau-changes/${id}/rejeter`, {})
+      load()
     } catch (err) {
       setError(getApiError(err))
     }
@@ -122,7 +127,7 @@ export default function BureauChanges() {
           )}
           {canReject && row.statut === 'en_attente' && (
             <button
-              onClick={() => setRejectModal({ open: true, id: row.id })}
+              onClick={() => rejeter(row.id)}
               className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100"
             >
               <X size={13} /> Rejeter
@@ -141,6 +146,7 @@ export default function BureauChanges() {
       />
 
       <ErrorAlert message={error} onDismiss={() => setError('')} />
+      <SuccessAlert message={success} onDismiss={() => setSuccess('')} />
 
       {/* Filtres */}
       <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px]">
@@ -215,36 +221,6 @@ export default function BureauChanges() {
         loading={loading}
         onPage={(page) => setFilters({ ...filters, page })}
       />
-
-      {/* Modal rejet */}
-      {rejectModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 className="text-lg font-semibold text-slate-800">Rejeter le bureau de change</h3>
-            <p className="mt-1 text-sm text-slate-500">Motif du rejet (optionnel).</p>
-            <textarea
-              className="field mt-4 h-24 resize-none"
-              placeholder="Motif..."
-              value={commentaire}
-              onChange={(e) => setCommentaire(e.target.value)}
-            />
-            <div className="mt-4 flex justify-end gap-3">
-              <button
-                onClick={() => { setRejectModal({ open: false, id: null }); setCommentaire('') }}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={rejeter}
-                className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
-              >
-                Confirmer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }
