@@ -1,5 +1,5 @@
 import { Edit, Plus, Search, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
@@ -10,14 +10,15 @@ import PageHeader from '../components/PageHeader'
 const emptyForm = { departement_id: '', libelle: '', adresse: '', telephone: '', email: '' }
 
 export default function Services() {
-  const [rows, setRows]               = useState([])
+  const [rows, setRows]                 = useState([])
   const [departements, setDepartements] = useState([])
-  const [loading, setLoading]         = useState(true)
-  const [form, setForm]               = useState(emptyForm)
-  const [editing, setEditing]         = useState(null)
-  const [error, setError]             = useState('')
-  const [success, setSuccess]         = useState('')
-  const [search, setSearch]           = useState('')
+  const [loading, setLoading]           = useState(true)
+  const [form, setForm]                 = useState(emptyForm)
+  const [editing, setEditing]           = useState(null)
+  const [error, setError]               = useState('')
+  const [success, setSuccess]           = useState('')
+  const originalForm = useRef(null)
+  const [search, setSearch]             = useState('')
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null })
 
   useEffect(() => {
@@ -38,6 +39,10 @@ export default function Services() {
     setError(''); setSuccess('')
     try {
       if (editing) {
+        if (JSON.stringify(form) === JSON.stringify(originalForm.current)) {
+          setForm(emptyForm); setEditing(null)
+          return
+        }
         await api.put(`/services/${editing}`, form)
         setSuccess('Service mis à jour.')
       } else {
@@ -64,11 +69,18 @@ export default function Services() {
     setEditing(row.id)
     setForm({
       departement_id: row.departement?.id ?? '',
-      libelle:   row.libelle,
-      adresse:   row.adresse ?? '',
-      telephone: row.telephone ?? '',
-      email:     row.email ?? '',
+      libelle:        row.libelle,
+      adresse:        row.adresse ?? '',
+      telephone:      row.telephone ?? '',
+      email:          row.email ?? '',
     })
+    originalForm.current = {
+      departement_id: row.departement?.id ?? '',
+      libelle:        row.libelle,
+      adresse:        row.adresse ?? '',
+      telephone:      row.telephone ?? '',
+      email:          row.email ?? '',
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -80,10 +92,16 @@ export default function Services() {
     { key: 'libelle', label: 'Libellé' },
     {
       key: 'departement', label: 'Département',
-      render: (row) => row.departement?.libelle ?? '—',
+      render: (row) => row.departement?.libelle || <span className="text-slate-400">N/A</span>,
     },
-    { key: 'telephone', label: 'Téléphone' },
-    { key: 'email',     label: 'Email' },
+    {
+      key: 'telephone', label: 'Téléphone',
+      render: (row) => row.telephone || <span className="text-slate-400">N/A</span>,
+    },
+    {
+      key: 'email', label: 'Email',
+      render: (row) => row.email || <span className="text-slate-400">N/A</span>,
+    },
     {
       key: 'actions', label: 'Actions',
       render: (row) => (
@@ -123,18 +141,24 @@ export default function Services() {
         </h3>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
           <select className="field" value={form.departement_id}
-            onChange={(e) => setForm({ ...form, departement_id: e.target.value })}>
+            onChange={(e) => setForm({ ...form, departement_id: e.target.value })}
+            required>
             <option value="">Sélectionner un département *</option>
             {departements.map((d) => <option key={d.id} value={d.id}>{d.libelle}</option>)}
           </select>
           <input className="field" placeholder="Libellé *"
-            value={form.libelle} onChange={(e) => setForm({ ...form, libelle: e.target.value })} />
+            value={form.libelle}
+            onChange={(e) => setForm({ ...form, libelle: e.target.value })}
+            required />
           <input className="field" placeholder="Adresse"
-            value={form.adresse} onChange={(e) => setForm({ ...form, adresse: e.target.value })} />
+            value={form.adresse}
+            onChange={(e) => setForm({ ...form, adresse: e.target.value })} />
           <input className="field" placeholder="Téléphone"
-            value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} />
+            value={form.telephone}
+            onChange={(e) => setForm({ ...form, telephone: e.target.value })} />
           <input className="field" type="email" placeholder="Email"
-            value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })} />
         </div>
         <div className="mt-3 flex gap-2">
           <button className="btn btn-primary">

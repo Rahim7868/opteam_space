@@ -62,7 +62,7 @@ export default function AuditLogs() {
             <div className="font-semibold text-slate-800 text-sm">{row.user.nom}</div>
           </div>
         )
-        : <span className="text-slate-400">—</span>,
+        : <span className="text-slate-400">N/A</span>,
     },
     {
       key: 'action', label: 'Action',

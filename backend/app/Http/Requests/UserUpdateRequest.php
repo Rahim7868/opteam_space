@@ -21,6 +21,7 @@ class UserUpdateRequest extends FormRequest
             'email'      => ['required', 'email', 'max:255',
                              Rule::unique('users', 'email')->ignore($userId)],
             'adresse'    => ['nullable', 'string', 'max:255'],
+            'fonction'   => ['nullable', 'string', 'max:255'], 
             'service_id' => ['nullable', 'exists:services,id'],
             'role_id'    => ['nullable', 'exists:roles,id'],
             // Pas de password ici → géré séparément via change-password

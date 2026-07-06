@@ -1,5 +1,5 @@
 import { Edit, Plus, Search, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
@@ -16,6 +16,7 @@ export default function Agences() {
   const [editing, setEditing] = useState(null)
   const [error, setError]     = useState('')
   const [success, setSuccess] = useState('')
+  const originalForm = useRef(null)
   const [search, setSearch]   = useState('')
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null })
 
@@ -33,6 +34,10 @@ export default function Agences() {
     setError(''); setSuccess('')
     try {
       if (editing) {
+        if (JSON.stringify(form) === JSON.stringify(originalForm.current)) {
+          setForm(emptyForm); setEditing(null)
+          return
+        }
         await api.put(`/agences/${editing}`, form)
         setSuccess('Agence mise à jour.')
       } else {
@@ -57,7 +62,18 @@ export default function Agences() {
 
   function startEdit(row) {
     setEditing(row.id)
-    setForm({ libelle: row.libelle, adresse: row.adresse ?? '', telephone: row.telephone ?? '', email: row.email ?? '' })
+    setForm({
+      libelle:   row.libelle,
+      adresse:   row.adresse ?? '',
+      telephone: row.telephone ?? '',
+      email:     row.email ?? '',
+    })
+    originalForm.current = {
+      libelle:   row.libelle,
+      adresse:   row.adresse ?? '',
+      telephone: row.telephone ?? '',
+      email:     row.email ?? '',
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -66,10 +82,19 @@ export default function Agences() {
   )
 
   const columns = [
-    { key: 'libelle',   label: 'Libellé' },
-    { key: 'adresse',   label: 'Adresse' },
-    { key: 'telephone', label: 'Téléphone' },
-    { key: 'email',     label: 'Email' },
+    { key: 'libelle', label: 'Libellé' },
+    {
+      key: 'adresse', label: 'Adresse',
+      render: (row) => row.adresse || <span className="text-slate-400">N/A</span>,
+    },
+    {
+      key: 'telephone', label: 'Téléphone',
+      render: (row) => row.telephone || <span className="text-slate-400">N/A</span>,
+    },
+    {
+      key: 'email', label: 'Email',
+      render: (row) => row.email || <span className="text-slate-400">N/A</span>,
+    },
     {
       key: 'actions', label: 'Actions',
       render: (row) => (
@@ -109,17 +134,22 @@ export default function Agences() {
       <form onSubmit={submit}
         className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <h3 className="mb-3 text-sm font-bold text-slate-700">
-          {editing ? 'Modifier l\'agence' : 'Ajouter une agence'}
+          {editing ? "Modifier l'agence" : 'Ajouter une agence'}
         </h3>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <input className="field" placeholder="Libellé *"
-            value={form.libelle} onChange={(e) => setForm({ ...form, libelle: e.target.value })} />
+            value={form.libelle}
+            onChange={(e) => setForm({ ...form, libelle: e.target.value })}
+            required />
           <input className="field" placeholder="Adresse"
-            value={form.adresse} onChange={(e) => setForm({ ...form, adresse: e.target.value })} />
+            value={form.adresse}
+            onChange={(e) => setForm({ ...form, adresse: e.target.value })} />
           <input className="field" placeholder="Téléphone"
-            value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} />
+            value={form.telephone}
+            onChange={(e) => setForm({ ...form, telephone: e.target.value })} />
           <input className="field" type="email" placeholder="Email"
-            value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })} />
         </div>
         <div className="mt-3 flex gap-2">
           <button className="btn btn-primary">

@@ -1,5 +1,5 @@
 import { Edit, Plus, Search, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
@@ -10,15 +10,16 @@ import PageHeader from '../components/PageHeader'
 const emptyForm = { libelle: '', permission_ids: [] }
 
 export default function Roles() {
-  const [rows, setRows]           = useState([])
-  const [loading, setLoading]     = useState(true)
+  const [rows, setRows]                     = useState([])
+  const [loading, setLoading]               = useState(true)
   const [allPermissions, setAllPermissions] = useState([])
-  const [form, setForm]           = useState(emptyForm)
-  const [editing, setEditing]     = useState(null)
-  const [error, setError]         = useState('')
-  const [success, setSuccess]     = useState('')
-  const [search, setSearch]       = useState('')
-  const [confirmModal, setConfirmModal] = useState({ open: false, id: null })
+  const [form, setForm]                     = useState(emptyForm)
+  const [editing, setEditing]               = useState(null)
+  const [error, setError]                   = useState('')
+  const [success, setSuccess]               = useState('')
+  const originalForm = useRef(null)
+  const [search, setSearch]                 = useState('')
+  const [confirmModal, setConfirmModal]     = useState({ open: false, id: null })
 
   useEffect(() => {
     api.get('/permissions').then(({ data }) =>
@@ -49,6 +50,10 @@ export default function Roles() {
     setError(''); setSuccess('')
     try {
       if (editing) {
+        if (JSON.stringify(form) === JSON.stringify(originalForm.current)) {
+          setForm(emptyForm); setEditing(null)
+          return
+        }
         await api.put(`/roles/${editing}`, form)
         setSuccess('Rôle mis à jour.')
       } else {
@@ -77,6 +82,10 @@ export default function Roles() {
       libelle:        role.libelle,
       permission_ids: (role.permissions ?? []).map((p) => p.id),
     })
+    originalForm.current = {
+      libelle:        role.libelle,
+      permission_ids: (role.permissions ?? []).map((p) => p.id),
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -91,7 +100,7 @@ export default function Roles() {
       render: (row) => {
         const perms = row.permissions ?? []
         if (perms.length === 0)
-          return <span className="text-slate-400 text-xs">Aucune</span>
+          return <span className="text-slate-400 text-xs">N/A</span>
         return (
           <div className="flex flex-wrap gap-1">
             {perms.slice(0, 3).map((p) => (
@@ -113,7 +122,7 @@ export default function Roles() {
       key: 'users_count', label: 'Acteurs',
       render: (row) => (
         <span className="font-semibold text-slate-700">
-          {row.users_count ?? '—'}
+          {row.users_count ?? <span className="text-slate-400">N/A</span>}
         </span>
       ),
     },
@@ -148,7 +157,6 @@ export default function Roles() {
       <ErrorAlert message={error} onDismiss={() => setError('')} />
       <SuccessAlert message={success} onDismiss={() => setSuccess('')} />
 
-      {/* Recherche */}
       <div className="mb-4">
         <div className="relative">
           <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
@@ -161,7 +169,6 @@ export default function Roles() {
         </div>
       </div>
 
-      {/* Formulaire */}
       <form
         onSubmit={submit}
         className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
@@ -172,12 +179,12 @@ export default function Roles() {
 
         <input
           className="field mb-3"
-          placeholder="Libellé du rôle (ex: Superviseur)"
+          placeholder="Libellé du rôle (ex: Superviseur) *"
           value={form.libelle}
           onChange={(e) => setForm({ ...form, libelle: e.target.value })}
+          required
         />
 
-        {/* Checkboxes permissions */}
         <div className="mb-3">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
             Permissions associées
@@ -222,11 +229,7 @@ export default function Roles() {
         </div>
       </form>
 
-      <DataTable
-        columns={columns}
-        rows={filtered}
-        loading={loading}
-      />
+      <DataTable columns={columns} rows={filtered} loading={loading} />
 
       <ConfirmModal
         open={confirmModal.open}

@@ -19,19 +19,14 @@ class DatabaseSeeder extends Seeder
     {
         // ── 1. Permissions ────────────────────────────────────
         $permissions = [
-            // Fixings
             'creer_fixing',
             'modifier_fixing',
             'valider_fixing',
             'rejeter_fixing',
-
-            // Bureaux de change
             'creer_bureau_change',
             'modifier_bureau_change',
             'valider_bureau_change',
             'rejeter_bureau_change',
-
-            // Administration
             'gerer_acteurs',
             'gerer_roles',
             'gerer_permissions',
@@ -47,8 +42,8 @@ class DatabaseSeeder extends Seeder
         }
 
         // ── 2. Rôles ──────────────────────────────────────────
-        $roleAdmin = Role::create(['libelle' => 'Admin']);
-        $roleAgent = Role::create(['libelle' => 'Agent']);
+        $roleAdmin       = Role::create(['libelle' => 'Admin']);
+        $roleAgent       = Role::create(['libelle' => 'Agent']);
         $roleSuperviseur = Role::create(['libelle' => 'Superviseur']);
         $roleControleur  = Role::create(['libelle' => 'Contrôleur']);
 
@@ -57,7 +52,7 @@ class DatabaseSeeder extends Seeder
             collect($permissionModels)->pluck('id')->toArray()
         );
 
-        // Agent → créer et modifier fixing + bureau de change
+        // Agent → créer et modifier
         $roleAgent->permissions()->sync([
             $permissionModels['creer_fixing']->id,
             $permissionModels['modifier_fixing']->id,
@@ -77,7 +72,7 @@ class DatabaseSeeder extends Seeder
             $permissionModels['rejeter_bureau_change']->id,
         ]);
 
-        // Contrôleur → consulter seulement
+        // Contrôleur → créer et modifier seulement
         $roleControleur->permissions()->sync([
             $permissionModels['creer_fixing']->id,
             $permissionModels['modifier_fixing']->id,
@@ -117,48 +112,48 @@ class DatabaseSeeder extends Seeder
 
         // ── 4. Utilisateurs ───────────────────────────────────
 
-        // Admin principal
         $admin = User::create([
             'nom'                  => 'Administrateur',
             'email'                => 'admin@opteam.gn',
             'password'             => Hash::make('Admin@1234'),
             'adresse'              => 'Conakry, Guinée',
+            'fonction'             => 'Administrateur Système',
             'service_id'           => $service->id,
             'role_id'              => $roleAdmin->id,
             'is_active'            => true,
-            'must_change_password' => false, // Admin n'a pas besoin de changer
+            'must_change_password' => false,
         ]);
 
-        // Agent 1
         User::create([
             'nom'                  => 'Mamadou Diallo',
             'email'                => 'mamadou@opteam.gn',
             'password'             => Hash::make('00000000'),
             'adresse'              => 'Conakry, Guinée',
+            'fonction'             => 'Agent de Change',
             'service_id'           => $service->id,
             'role_id'              => $roleAgent->id,
             'is_active'            => true,
             'must_change_password' => true,
         ]);
 
-        // Agent 2
         User::create([
             'nom'                  => 'Fatoumata Camara',
             'email'                => 'fatoumata@opteam.gn',
             'password'             => Hash::make('00000000'),
             'adresse'              => 'Conakry, Guinée',
+            'fonction'             => 'Agent de Change',
             'service_id'           => $service->id,
             'role_id'              => $roleAgent->id,
             'is_active'            => true,
             'must_change_password' => true,
         ]);
 
-        // Superviseur
         User::create([
             'nom'                  => 'Ibrahim Soumah',
             'email'                => 'ibrahim@opteam.gn',
             'password'             => Hash::make('00000000'),
             'adresse'              => 'Conakry, Guinée',
+            'fonction'             => 'Superviseur des Opérations',
             'service_id'           => $service->id,
             'role_id'              => $roleSuperviseur->id,
             'is_active'            => true,
@@ -177,5 +172,6 @@ class DatabaseSeeder extends Seeder
         $this->command->info('✅ Base de données initialisée avec succès !');
         $this->command->info('👤 Admin : admin@opteam.gn / Admin@1234');
         $this->command->info('👤 Agents : mamadou@opteam.gn / 00000000');
+        $this->command->info('👤 Superviseur : ibrahim@opteam.gn / 00000000');
     }
 }

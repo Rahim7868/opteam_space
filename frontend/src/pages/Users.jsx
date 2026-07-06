@@ -1,5 +1,5 @@
 import { Edit, Plus, Search, ToggleLeft, ToggleRight, Shield } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import DataTable from '../components/DataTable'
 import ErrorAlert from '../components/ErrorAlert'
@@ -9,6 +9,7 @@ import StatusBadge from '../components/StatusBadge'
 
 const emptyForm = {
   nom: '', email: '', adresse: '',
+  fonction: '',
   agence_id: '', direction_id: '', departement_id: '', service_id: '',
   role_id: '',
 }
@@ -28,12 +29,13 @@ export default function Users() {
   const [editing, setEditing] = useState(null)
   const [error, setError]     = useState('')
   const [success, setSuccess] = useState('')
+  const originalForm = useRef(null)
 
   // Modal permissions
   const [permModal, setPermModal]           = useState({ open: false, user: null })
   const [allPermissions, setAllPermissions] = useState([])
   const [selectedPerms, setSelectedPerms]   = useState([])
-  const [rolePerms, setRolePerms]           = useState([]) // permissions du rôle
+  const [rolePerms, setRolePerms]           = useState([])
   const [loadingPerms, setLoadingPerms]     = useState(false)
 
   useEffect(() => {
@@ -127,6 +129,10 @@ export default function Users() {
     setError(''); setSuccess('')
     try {
       if (editing) {
+        if (JSON.stringify(form) === JSON.stringify(originalForm.current)) {
+          resetForm()
+          return
+        }
         await api.put(`/users/${editing}`, form)
         setSuccess('Acteur mis à jour.')
       } else {
@@ -151,19 +157,31 @@ export default function Users() {
 
   async function startEdit(user) {
     setEditing(user.id)
-    
+
     const h = user.hierarchie || {}
-    
+
     setForm({
-      nom:        user.nom,
-      email:      user.email,
-      adresse:    user.adresse ?? '',
-      agence_id:  h.agence_id ?? '',
-      direction_id: h.direction_id ?? '',
+      nom:            user.nom,
+      email:          user.email,
+      adresse:        user.adresse ?? '',
+      fonction:       user.fonction ?? '',
+      agence_id:      h.agence_id ?? '',
+      direction_id:   h.direction_id ?? '',
       departement_id: h.departement_id ?? '',
-      service_id: h.service_id ?? '',
-      role_id:    user.role?.id ?? '',
+      service_id:     h.service_id ?? '',
+      role_id:        user.role?.id ?? '',
     })
+    originalForm.current = {
+      nom:            user.nom,
+      email:          user.email,
+      adresse:        user.adresse ?? '',
+      fonction:       user.fonction ?? '',
+      agence_id:      h.agence_id ?? '',
+      direction_id:   h.direction_id ?? '',
+      departement_id: h.departement_id ?? '',
+      service_id:     h.service_id ?? '',
+      role_id:        user.role?.id ?? '',
+    }
 
     try {
       if (h.agence_id) {
@@ -202,12 +220,8 @@ export default function Users() {
     api.get(`/users/${user.id}`)
       .then(({ data }) => {
         const u = data.data ?? data
-
-        // ✅ Permissions du rôle → pour affichage info
         const permsRole = u.role?.permissions?.map(p => p.libelle) ?? []
         setRolePerms(permsRole)
-
-        // ✅ Pré-cocher toutes_permissions (rôle + directes)
         const toutesPerms = Array.isArray(u.toutes_permissions)
           ? u.toutes_permissions
           : Object.values(u.toutes_permissions ?? {})
@@ -217,10 +231,7 @@ export default function Users() {
   }
 
   async function savePermissions() {
-    // On sauvegarde uniquement les permissions directes
-    // = permissions cochées qui ne viennent PAS du rôle
     const directesLibelles = selectedPerms.filter(p => !rolePerms.includes(p))
-
     const ids = allPermissions
       .filter((p) => directesLibelles.includes(p.libelle))
       .map((p) => p.id)
@@ -235,9 +246,7 @@ export default function Users() {
   }
 
   function togglePerm(libelle) {
-    // ✅ Les permissions du rôle ne peuvent pas être décochées
     if (rolePerms.includes(libelle)) return
-
     setSelectedPerms((prev) =>
       prev.includes(libelle)
         ? prev.filter((p) => p !== libelle)
@@ -249,14 +258,32 @@ export default function Users() {
     { key: 'nom',   label: 'Nom' },
     { key: 'email', label: 'Email' },
     {
+      key: 'fonction', label: 'Fonction',
+      render: (row) => row.fonction
+        ? <span className="text-slate-700 text-sm">{row.fonction}</span>
+        : <span className="text-slate-400">N/A</span>,
+    },
+    {
       key: 'role', label: 'Rôle',
       render: (row) => row.role?.libelle
         ? <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">{row.role.libelle}</span>
-        : <span className="text-slate-400">—</span>,
+        : <span className="text-slate-400">N/A</span>,
+    },
+    {
+      key: 'agence', label: 'Agence',
+      render: (row) => row.agence ?? <span className="text-slate-400">N/A</span>,
+    },
+    {
+      key: 'direction', label: 'Direction',
+      render: (row) => row.direction ?? <span className="text-slate-400">N/A</span>,
+    },
+    {
+      key: 'departement', label: 'Département',
+      render: (row) => row.departement ?? <span className="text-slate-400">N/A</span>,
     },
     {
       key: 'service', label: 'Service',
-      render: (row) => row.service?.libelle ?? <span className="text-slate-400">—</span>,
+      render: (row) => row.service?.libelle ?? <span className="text-slate-400">N/A</span>,
     },
     {
       key: 'is_active', label: 'Statut',
@@ -345,18 +372,25 @@ export default function Users() {
           {editing ? 'Modifier un acteur' : 'Ajouter un acteur'}
         </h3>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          <input className="field" placeholder="Nom complet"
+          <input className="field" placeholder="Nom complet *"
             value={form.nom}
-            onChange={(e) => setForm({ ...form, nom: e.target.value })} />
-          <input className="field" type="email" placeholder="Email"
+            onChange={(e) => setForm({ ...form, nom: e.target.value })}
+            required />
+          <input className="field" type="email" placeholder="Email *"
             value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            required />
           <input className="field" placeholder="Adresse (optionnel)"
             value={form.adresse}
             onChange={(e) => setForm({ ...form, adresse: e.target.value })} />
+          {/* ✅ Nouveau champ Fonction */}
+          <input className="field" placeholder="Fonction (ex: Directeur, Caissier...)"
+            value={form.fonction}
+            onChange={(e) => setForm({ ...form, fonction: e.target.value })} />
           <select className="field" value={form.role_id}
-            onChange={(e) => setForm({ ...form, role_id: e.target.value })}>
-            <option value="">Sélectionner un rôle</option>
+            onChange={(e) => setForm({ ...form, role_id: e.target.value })}
+            required>
+            <option value="">Sélectionner un rôle *</option>
             {roles.map((r) => <option key={r.id} value={r.id}>{r.libelle}</option>)}
           </select>
           <select className="field" value={form.agence_id}
@@ -378,8 +412,9 @@ export default function Users() {
           </select>
           <select className="field" value={form.service_id}
             onChange={(e) => setForm({ ...form, service_id: e.target.value })}
-            disabled={!form.departement_id}>
-            <option value="">Sélectionner un service</option>
+            disabled={!form.departement_id}
+            required>
+            <option value="">Sélectionner un service *</option>
             {services.map((s) => <option key={s.id} value={s.id}>{s.libelle}</option>)}
           </select>
         </div>
@@ -434,8 +469,8 @@ export default function Users() {
             ) : (
               <div className="mt-4 max-h-72 overflow-y-auto space-y-1">
                 {allPermissions.map((perm) => {
-                  const isFromRole   = rolePerms.includes(perm.libelle)
-                  const isChecked    = selectedPerms.includes(perm.libelle)
+                  const isFromRole = rolePerms.includes(perm.libelle)
+                  const isChecked  = selectedPerms.includes(perm.libelle)
 
                   return (
                     <label
@@ -456,7 +491,6 @@ export default function Users() {
                       <span className="text-sm font-medium text-slate-700">
                         {perm.libelle}
                       </span>
-                      {/* ✅ Badge indiquant que c'est une permission du rôle */}
                       {isFromRole && (
                         <span className="ml-auto rounded-full bg-teal-50 px-2 py-0.5 text-xs text-teal-600 ring-1 ring-teal-200">
                           Rôle

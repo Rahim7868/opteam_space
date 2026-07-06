@@ -19,6 +19,14 @@ class BureauChangeRequest extends FormRequest
         $bureauChangeId = is_object($bureauChange) ? $bureauChange->id : $bureauChange;
 
         return [
+            'numero_ordre' => [
+                'required',
+                'string',
+                'max:100',
+                Rule::unique('bureau_changes', 'numero_ordre')
+                    ->ignore($bureauChangeId),
+            ],
+
             'designation' => ['required', 'string', 'max:255'],
 
             'numero_agrement' => [
@@ -39,6 +47,8 @@ class BureauChangeRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'numero_ordre.required'      => 'Le numéro d\'ordre est obligatoire.',
+            'numero_ordre.unique'        => 'Ce numéro d\'ordre existe déjà.',
             'designation.required'       => 'La désignation est obligatoire.',
             'numero_agrement.required'   => 'Le numéro d\'agrément est obligatoire.',
             'numero_agrement.unique'     => 'Ce numéro d\'agrément existe déjà.',

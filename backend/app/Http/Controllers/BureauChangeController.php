@@ -20,7 +20,8 @@ class BureauChangeController extends Controller
         if (request('search')) {
             $search = request('search');
             $query->where(fn($q) => $q
-                ->where('designation', 'like', "%{$search}%")
+                ->where('numero_ordre', 'like', "%{$search}%")
+                ->orWhere('designation', 'like', "%{$search}%")
                 ->orWhere('numero_agrement', 'like', "%{$search}%")
             );
         }

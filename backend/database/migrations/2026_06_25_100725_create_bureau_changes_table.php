@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('bureau_changes', function (Blueprint $table) {
             $table->id();
+            $table->string('numero_ordre')->unique();
             $table->string('designation');
             $table->string('numero_agrement')->unique();
             $table->string('representant_legal');

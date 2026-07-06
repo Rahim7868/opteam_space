@@ -1,5 +1,5 @@
 import { Check, Edit, Plus, Search, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import DataTable from '../components/DataTable'
 import ErrorAlert from '../components/ErrorAlert'
@@ -9,12 +9,12 @@ import StatusBadge from '../components/StatusBadge'
 import { useAuth } from '../context/AuthContext'
 
 const emptyForm = {
-  designation: '', numero_agrement: '',
+  numero_ordre: '', designation: '', numero_agrement: '',
   representant_legal: '', contact: '', adresse: '',
 }
 
 export default function BureauChanges() {
-  // ✅ Ajout de user
+  // Ajout de user
   const { hasPermission, user } = useAuth()
 
   const canCreate   = hasPermission('creer_bureau_change')
@@ -30,6 +30,7 @@ export default function BureauChanges() {
   const [editing, setEditing] = useState(null)
   const [error, setError]     = useState('')
   const [success, setSuccess] = useState('')
+  const originalForm = useRef(null)
 
   function load() {
     setLoading(true)
@@ -49,6 +50,10 @@ export default function BureauChanges() {
     setSuccess('')
     try {
       if (editing) {
+        if (JSON.stringify(form) === JSON.stringify(originalForm.current)) {
+          setForm(emptyForm); setEditing(null)
+          return
+        }
         await api.put(`/bureau-changes/${editing}`, form)
         setSuccess('Bureau de change modifié avec succès.')
       } else {
@@ -82,20 +87,31 @@ export default function BureauChanges() {
   function startEdit(row) {
     setEditing(row.id)
     setForm({
+      numero_ordre:       row.numero_ordre ?? '',
       designation:        row.designation,
       numero_agrement:    row.numero_agrement,
       representant_legal: row.representant_legal,
       contact:            row.contact ?? '',
       adresse:            row.adresse ?? '',
     })
+    originalForm.current = {
+      numero_ordre:       row.numero_ordre ?? '',
+      designation:        row.designation,
+      numero_agrement:    row.numero_agrement,
+      representant_legal: row.representant_legal,
+      contact:            row.contact ?? '',
+      adresse:            row.adresse ?? '',
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   const columns = [
+    { key: 'numero_ordre',       label: 'N° Ordre' },
     { key: 'designation',        label: 'Désignation' },
     { key: 'numero_agrement',    label: 'N° Agrément' },
     { key: 'representant_legal', label: 'Représentant' },
     { key: 'contact',            label: 'Contact' },
+    { key: 'adresse',            label: 'Adresse' },
     {
       key: 'createur', label: 'Créé par',
       render: (row) => row.createur?.nom ?? '—',
@@ -108,7 +124,7 @@ export default function BureauChanges() {
       key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          {/* ✅ Modifier uniquement ses propres bureaux de change */}
+          {/* Modifier uniquement ses propres bureaux de change */}
           {canModify && row.statut === 'en_attente' && row.createur?.id === user?.id && (
             <button
               onClick={() => startEdit(row)}
@@ -181,15 +197,22 @@ export default function BureauChanges() {
             {editing ? 'Modifier le bureau de change' : 'Ajouter un bureau de change'}
           </h3>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            <input className="field" placeholder="Désignation"
+            <input className="field" placeholder="N° Ordre *"
+              value={form.numero_ordre}
+              onChange={(e) => setForm({ ...form, numero_ordre: e.target.value })}
+              required />
+            <input className="field" placeholder="Désignation *"
               value={form.designation}
-              onChange={(e) => setForm({ ...form, designation: e.target.value })} />
-            <input className="field" placeholder="N° Agrément"
+              onChange={(e) => setForm({ ...form, designation: e.target.value })}
+              required />
+            <input className="field" placeholder="N° Agrément *"
               value={form.numero_agrement}
-              onChange={(e) => setForm({ ...form, numero_agrement: e.target.value })} />
-            <input className="field" placeholder="Représentant légal"
+              onChange={(e) => setForm({ ...form, numero_agrement: e.target.value })}
+              required />
+            <input className="field" placeholder="Représentant légal *"
               value={form.representant_legal}
-              onChange={(e) => setForm({ ...form, representant_legal: e.target.value })} />
+              onChange={(e) => setForm({ ...form, representant_legal: e.target.value })}
+              required />
             <input className="field" placeholder="Contact"
               value={form.contact}
               onChange={(e) => setForm({ ...form, contact: e.target.value })} />

@@ -1,5 +1,5 @@
 import { Check, Edit, Plus, Search, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import DataTable from '../components/DataTable'
 import ErrorAlert from '../components/ErrorAlert'
@@ -18,7 +18,7 @@ const emptyForm = {
 const currencies = ['EUR', 'USD', 'GBP', 'CAD', 'CHF', 'XOF']
 
 export default function Fixings() {
-  // ✅ Ajout de user
+  //  Ajout de user
   const { hasPermission, user } = useAuth()
 
   const canCreate   = hasPermission('creer_fixing')
@@ -34,6 +34,7 @@ export default function Fixings() {
   const [editingId, setEditingId] = useState(null)
   const [error, setError]         = useState('')
   const [success, setSuccess]     = useState('')
+  const originalForm = useRef(null)
 
   function load() {
     setLoading(true)
@@ -51,6 +52,12 @@ export default function Fixings() {
     e.preventDefault()
     setError('')
     setSuccess('')
+
+    if (editingId && JSON.stringify(form) === JSON.stringify(originalForm.current)) {
+      setEditingId(null); setForm(emptyForm)
+      return
+    }
+
     const payload = new FormData()
     Object.entries(form).forEach(([k, v]) => { if (v) payload.append(k, v) })
 
@@ -100,7 +107,7 @@ export default function Fixings() {
       key: 'variation', label: 'Variation',
       render: (row) => {
         if (row.variation === null || row.variation === undefined) {
-          return <span className="text-slate-400 text-xs">—</span>
+          return <span className="text-slate-400 text-xs">N/A</span>
         }
         const v = Number(row.variation)
         if (v === 0) return <span className="text-slate-500 text-xs">0.0000</span>
@@ -116,7 +123,7 @@ export default function Fixings() {
       render: (row) => row.piece_jointe_url
         ? <a href={row.piece_jointe_url} target="_blank" rel="noreferrer"
              className="text-teal-600 hover:underline text-xs">Voir fichier</a>
-        : <span className="text-slate-400">—</span>,
+        : <span className="text-slate-400">N/A</span>,
     },
     {
       key: 'createur', label: 'Créateur',
@@ -130,7 +137,7 @@ export default function Fixings() {
       key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          {/* ✅ Modifier uniquement ses propres fixings */}
+          {/*Modifier uniquement ses propres fixings */}
           {canModify && row.statut === 'en_attente' && row.createur?.id === user?.id && (
             <button
               onClick={() => {
@@ -141,6 +148,12 @@ export default function Fixings() {
                   cours:        row.cours,
                   piece_jointe: null,
                 })
+                originalForm.current = {
+                  date_fixing:  row.date_fixing,
+                  devise:       row.devise,
+                  cours:        row.cours,
+                  piece_jointe: null,
+                }
                 window.scrollTo({ top: 0, behavior: 'smooth' })
               }}
               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
@@ -216,19 +229,22 @@ export default function Fixings() {
             className="field"
             value={form.date_fixing}
             onChange={(e) => setForm({ ...form, date_fixing: e.target.value })}
+            required
           />
           <select
             className="field"
             value={form.devise}
             onChange={(e) => setForm({ ...form, devise: e.target.value })}
+            required
           >
             {currencies.map((c) => <option key={c}>{c}</option>)}
           </select>
           <input
             className="field"
-            placeholder="Cours (ex: 655.957)"
+            placeholder="Cours (ex: 655.957) *"
             value={form.cours}
             onChange={(e) => setForm({ ...form, cours: e.target.value })}
+            required
           />
           <input
             type="file"

@@ -18,6 +18,7 @@ class UserStoreRequest extends FormRequest
             'nom'        => ['required', 'string', 'max:255'],
             'email'      => ['required', 'email', 'max:255', 'unique:users,email'],
             'adresse'    => ['nullable', 'string', 'max:255'],
+             'fonction'   => ['nullable', 'string', 'max:255'], 
             'service_id' => ['nullable', 'exists:services,id'],
             'role_id'    => ['nullable', 'exists:roles,id'],
             // Pas de password ici → toujours 00000000 à la création

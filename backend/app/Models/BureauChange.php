@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class BureauChange extends Model
 {
     protected $fillable = [
-        'designation', 'numero_agrement',
+        'numero_ordre', 'designation', 'numero_agrement',
         'representant_legal', 'contact', 'adresse',
         'statut', 'commentaire',
         'created_by', 'validated_by',

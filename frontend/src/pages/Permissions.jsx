@@ -1,5 +1,5 @@
 import { Edit, Plus, Search, Trash2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
@@ -16,6 +16,7 @@ export default function Permissions() {
   const [editing, setEditing] = useState(null)
   const [error, setError]     = useState('')
   const [success, setSuccess] = useState('')
+  const originalForm = useRef(null)
   const [search, setSearch]   = useState('')
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null })
 
@@ -33,6 +34,10 @@ export default function Permissions() {
     setError(''); setSuccess('')
     try {
       if (editing) {
+        if (JSON.stringify(form) === JSON.stringify(originalForm.current)) {
+          setForm(emptyForm); setEditing(null)
+          return
+        }
         await api.put(`/permissions/${editing}`, form)
         setSuccess('Permission mise à jour.')
       } else {
@@ -66,7 +71,7 @@ export default function Permissions() {
       render: (row) => (
         <div className="flex gap-2">
           <button
-            onClick={() => { setEditing(row.id); setForm({ libelle: row.libelle }) }}
+            onClick={() => { setEditing(row.id); setForm({ libelle: row.libelle }); originalForm.current = { libelle: row.libelle } }}
             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
           >
             <Edit size={13} /> Modifier
@@ -92,7 +97,6 @@ export default function Permissions() {
       <ErrorAlert message={error} onDismiss={() => setError('')} />
       <SuccessAlert message={success} onDismiss={() => setSuccess('')} />
 
-      {/* Recherche + Formulaire inline */}
       <div className="mb-4 flex gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
@@ -115,9 +119,10 @@ export default function Permissions() {
           </label>
           <input
             className="field"
-            placeholder="ex: creer_fixing, valider_bureau_change..."
+            placeholder="ex: creer_fixing, valider_bureau_change... *"
             value={form.libelle}
             onChange={(e) => setForm({ libelle: e.target.value })}
+            required
           />
         </div>
         <button className="btn btn-primary">

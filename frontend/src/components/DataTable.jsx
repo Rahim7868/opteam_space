@@ -51,7 +51,11 @@ export default function DataTable({ columns, rows, meta, onPage, loading }) {
                       key={col.key}
                       className="whitespace-nowrap px-4 py-3 text-slate-700"
                     >
-                      {col.render ? col.render(row) : row[col.key]}
+                      {col.render
+                        ? col.render(row)
+                        : (row[col.key] != null && row[col.key] !== '')
+                          ? row[col.key]
+                          : <span className="text-slate-400">N/A</span>}
                     </td>
                   ))}
                 </tr>

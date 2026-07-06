@@ -24,7 +24,7 @@ export default function AppLayout() {
   const [acteursOpen, setActeursOpen]     = useState(false)
 
   // ── Liens dynamiques selon les permissions ─────────────────
-  const mainLinks = [
+  const mainLinks = [  
     {
       to: '/',
       label: 'Tableau de bord',

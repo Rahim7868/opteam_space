@@ -11,6 +11,7 @@ class BureauChangeResource extends JsonResource
     {
         return [
             'id'                 => $this->id,
+            'numero_ordre'       => $this->numero_ordre,
             'designation'        => $this->designation,
             'numero_agrement'    => $this->numero_agrement,
             'representant_legal' => $this->representant_legal,
