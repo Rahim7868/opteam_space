@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\PermissionResource;
 use App\Models\Permission;
+use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -24,6 +25,8 @@ class PermissionController extends Controller
 
         $permission = Permission::create(['libelle' => request('libelle')]);
 
+        AuditLogger::forModel('permission_created', $permission, 'Création permission : ' . $permission->libelle);
+
         return new PermissionResource($permission);
     }
 
@@ -40,11 +43,15 @@ class PermissionController extends Controller
 
         $permission->update(['libelle' => request('libelle')]);
 
+        AuditLogger::forModel('permission_updated', $permission, 'Modification permission : ' . $permission->libelle);
+
         return new PermissionResource($permission);
     }
 
     public function destroy(Permission $permission): JsonResponse
     {
+        AuditLogger::forModel('permission_deleted', $permission, 'Suppression permission : ' . $permission->libelle);
+
         $permission->delete();
 
         return response()->json(['message' => 'Permission supprimée.']);

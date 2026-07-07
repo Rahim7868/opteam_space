@@ -27,6 +27,9 @@ import Services     from './pages/Services'
 
 // Audit
 import AuditLogs from './pages/AuditLogs'
+import AuditAccessLogs from './pages/AuditAccessLogs'
+import AuditExchangeLogs from './pages/AuditExchangeLogs'
+import AuditLocationLogs from './pages/AuditLocationLogs'
 
 export default function App() {
   return (
@@ -91,7 +94,11 @@ export default function App() {
 
           <Route path="audit-logs"
             element={<ProtectedRoute permission="gerer_acteurs" />}>
-            <Route index element={<AuditLogs />} />
+            <Route index element={<Navigate to="/audit-logs/actions" replace />} />
+            <Route path="actions" element={<AuditLogs />} />
+            <Route path="fixings-bureaux" element={<AuditExchangeLogs />} />
+            <Route path="locaux" element={<AuditLocationLogs />} />
+            <Route path="acces" element={<AuditAccessLogs />} />
           </Route>
 
         </Route>

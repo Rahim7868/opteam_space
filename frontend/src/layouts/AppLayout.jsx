@@ -22,6 +22,7 @@ export default function AppLayout() {
   const [sidebarOpen, setSidebarOpen]   = useState(false)
   const [structureOpen, setStructureOpen] = useState(false)
   const [acteursOpen, setActeursOpen]     = useState(false)
+  const [historyOpen, setHistoryOpen]      = useState(false)
 
   // ── Liens dynamiques selon les permissions ─────────────────
   const mainLinks = [  
@@ -57,6 +58,13 @@ export default function AppLayout() {
     { to: '/departements', label: 'Départements', permission: 'gerer_departements' },
     { to: '/services',     label: 'Services',     permission: 'gerer_services' },
   ].filter((l) => hasPermission(l.permission))
+
+  const historyLinks = [
+    { to: '/audit-logs/actions', label: 'Actions des utilisateurs' },
+    { to: '/audit-logs/fixings-bureaux', label: 'Fixings et bureaux de change' },
+    { to: '/audit-logs/locaux', label: 'Locaux' },
+    { to: '/audit-logs/acces', label: 'Utilisateurs, rôles et permissions' },
+  ]
 
   const showAudit     = hasPermission('gerer_acteurs')
   const showActeurs   = acteursLinks.length > 0
@@ -202,20 +210,42 @@ export default function AppLayout() {
 
           {/* ── Audit ─────────────────────────────────────── */}
           {showAudit && (
-            <NavLink
-              to="/audit-logs"
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
-                  isActive
-                    ? 'bg-teal-50 text-teal-800'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
-                }`
-              }
-            >
-              <History size={18} />
-              Historique
-            </NavLink>
+            <div className="pt-2">
+              <button
+                onClick={() => setHistoryOpen(!historyOpen)}
+                className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+              >
+                <span className="flex items-center gap-3">
+                  <History size={18} />
+                  Historique
+                </span>
+                <ChevronDown
+                  size={16}
+                  className={`transition-transform ${historyOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+
+              {historyOpen && (
+                <div className="ml-6 mt-1 space-y-1 border-l border-slate-200 pl-3">
+                  {historyLinks.map(({ to, label }) => (
+                    <NavLink
+                      key={to}
+                      to={to}
+                      onClick={() => setSidebarOpen(false)}
+                      className={({ isActive }) =>
+                        `block rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
+                          isActive
+                            ? 'bg-teal-50 text-teal-800'
+                            : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                        }`
+                      }
+                    >
+                      {label}
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
 
         </nav>

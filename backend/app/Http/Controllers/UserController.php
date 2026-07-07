@@ -6,6 +6,7 @@ use App\Http\Requests\UserStoreRequest;
 use App\Http\Requests\UserUpdateRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
+use App\Models\Role;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -49,11 +50,7 @@ class UserController extends Controller
             'is_active'            => true,
         ]);
 
-        AuditLogger::forModel(
-            'user_created',
-            $user,
-            'Création de l\'acteur ' . $user->nom
-        );
+        AuditLogger::forModel('user_created', $user, 'Création de l\'acteur ' . $user->nom);
 
         return new UserResource($user->load('role', 'service'));
     }
@@ -69,11 +66,7 @@ class UserController extends Controller
     {
         $user->update($request->validated());
 
-        AuditLogger::forModel(
-            'user_updated',
-            $user,
-            'Modification de l\'acteur ' . $user->nom
-        );
+        AuditLogger::forModel('user_updated', $user, 'Modification de l\'acteur ' . $user->nom);
 
         return new UserResource($user->load('role', 'service'));
     }
@@ -85,11 +78,7 @@ class UserController extends Controller
         $action = $user->is_active ? 'user_activated' : 'user_deactivated';
         $label  = $user->is_active ? 'Activation' : 'Désactivation';
 
-        AuditLogger::forModel(
-            $action,
-            $user,
-            $label . ' du compte de ' . $user->nom
-        );
+        AuditLogger::forModel($action, $user, $label . ' du compte de ' . $user->nom);
 
         return response()->json([
             'message'   => $user->is_active ? 'Compte activé.' : 'Compte désactivé.',
@@ -110,7 +99,6 @@ class UserController extends Controller
         $deniedIds  = collect(request('denied_ids', []));
 
         // Une permission ne peut pas être dans les deux listes en même temps
-        // En cas de conflit, la liste "directes" l'emporte (on la retire des refus)
         $deniedIds = $deniedIds->diff($grantedIds)->values();
 
         $user->permissionsDirectes()->sync($grantedIds->toArray());

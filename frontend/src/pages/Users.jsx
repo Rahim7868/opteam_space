@@ -19,17 +19,17 @@ export default function Users() {
   const [meta, setMeta]         = useState(null)
   const [loading, setLoading]   = useState(true)
   const [roles, setRoles]       = useState([])
-  const [agences, setAgences]         = useState([])
-  const [directions, setDirections]   = useState([])
+  const [agences, setAgences]           = useState([])
+  const [directions, setDirections]     = useState([])
   const [departements, setDepartements] = useState([])
-  const [services, setServices]       = useState([])
+  const [services, setServices]         = useState([])
 
   const [filters, setFilters] = useState({ search: '', role_id: '', is_active: '', page: 1 })
   const [form, setForm]       = useState(emptyForm)
   const [editing, setEditing] = useState(null)
   const [error, setError]     = useState('')
   const [success, setSuccess] = useState('')
-  const originalForm = useRef(null)
+  const originalForm          = useRef(null)
 
   // Modal permissions
   const [permModal, setPermModal]           = useState({ open: false, user: null })
@@ -160,18 +160,7 @@ export default function Users() {
 
     const h = user.hierarchie || {}
 
-    setForm({
-      nom:            user.nom,
-      email:          user.email,
-      adresse:        user.adresse ?? '',
-      fonction:       user.fonction ?? '',
-      agence_id:      h.agence_id ?? '',
-      direction_id:   h.direction_id ?? '',
-      departement_id: h.departement_id ?? '',
-      service_id:     h.service_id ?? '',
-      role_id:        user.role?.id ?? '',
-    })
-    originalForm.current = {
+    const formData = {
       nom:            user.nom,
       email:          user.email,
       adresse:        user.adresse ?? '',
@@ -182,6 +171,9 @@ export default function Users() {
       service_id:     h.service_id ?? '',
       role_id:        user.role?.id ?? '',
     }
+
+    setForm(formData)
+    originalForm.current = { ...formData }
 
     try {
       if (h.agence_id) {
@@ -220,8 +212,11 @@ export default function Users() {
     api.get(`/users/${user.id}`)
       .then(({ data }) => {
         const u = data.data ?? data
+
         const permsRole = u.role?.permissions?.map(p => p.libelle) ?? []
         setRolePerms(permsRole)
+
+        // Pré-cocher toutes les permissions effectives de l'acteur (role + directes - retirees)
         const toutesPerms = Array.isArray(u.toutes_permissions)
           ? u.toutes_permissions
           : Object.values(u.toutes_permissions ?? {})
@@ -232,21 +227,30 @@ export default function Users() {
 
   async function savePermissions() {
     const directesLibelles = selectedPerms.filter(p => !rolePerms.includes(p))
+    const deniedLibelles = rolePerms.filter(p => !selectedPerms.includes(p))
+
     const ids = allPermissions
       .filter((p) => directesLibelles.includes(p.libelle))
       .map((p) => p.id)
 
+    const deniedIds = allPermissions
+      .filter((p) => deniedLibelles.includes(p.libelle))
+      .map((p) => p.id)
+
     try {
-      await api.post(`/users/${permModal.user.id}/permissions`, { permission_ids: ids })
+      await api.post(`/users/${permModal.user.id}/permissions`, {
+        permission_ids: ids,
+        denied_ids: deniedIds,
+      })
       setSuccess('Permissions mises à jour.')
       setPermModal({ open: false, user: null })
+      load()
     } catch (err) {
       setError(getApiError(err))
     }
   }
 
   function togglePerm(libelle) {
-    if (rolePerms.includes(libelle)) return
     setSelectedPerms((prev) =>
       prev.includes(libelle)
         ? prev.filter((p) => p !== libelle)
@@ -383,7 +387,6 @@ export default function Users() {
           <input className="field" placeholder="Adresse (optionnel)"
             value={form.adresse}
             onChange={(e) => setForm({ ...form, adresse: e.target.value })} />
-          {/* ✅ Nouveau champ Fonction */}
           <input className="field" placeholder="Fonction (ex: Directeur, Caissier...)"
             value={form.fonction}
             onChange={(e) => setForm({ ...form, fonction: e.target.value })} />
@@ -459,7 +462,7 @@ export default function Users() {
               <span className="text-teal-700">{permModal.user?.nom}</span>
             </h3>
             <p className="mt-1 text-sm text-slate-500">
-              Les permissions grisées viennent du rôle et ne peuvent pas être retirées ici.
+              Cochez ou décochez librement les permissions de cet acteur.
             </p>
 
             {loadingPerms ? (
@@ -475,27 +478,17 @@ export default function Users() {
                   return (
                     <label
                       key={perm.id}
-                      className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 ${
-                        isFromRole
-                          ? 'cursor-not-allowed opacity-60 bg-slate-50'
-                          : 'hover:bg-slate-50'
-                      }`}
+                      className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-slate-50"
                     >
                       <input
                         type="checkbox"
                         checked={isChecked}
                         onChange={() => togglePerm(perm.libelle)}
-                        disabled={isFromRole}
                         className="h-4 w-4 rounded border-slate-300 text-teal-600"
                       />
                       <span className="text-sm font-medium text-slate-700">
                         {perm.libelle}
                       </span>
-                      {isFromRole && (
-                        <span className="ml-auto rounded-full bg-teal-50 px-2 py-0.5 text-xs text-teal-600 ring-1 ring-teal-200">
-                          Rôle
-                        </span>
-                      )}
                     </label>
                   )
                 })}

@@ -17,10 +17,14 @@ class UserResource extends JsonResource
             'is_active'            => $this->is_active,
             'must_change_password' => $this->must_change_password,
 
-            // Rôle
+            // Rôle avec ses permissions (pour pré-cocher dans le modal)
             'role' => $this->whenLoaded('role', fn() => [
-                'id'      => $this->role->id,
-                'libelle' => $this->role->libelle,
+                'id'          => $this->role->id,
+                'libelle'     => $this->role->libelle,
+                'permissions' => $this->role->permissions->map(fn($p) => [
+                    'id'      => $p->id,
+                    'libelle' => $p->libelle,
+                ]),
             ]),
 
             // Hiérarchie via service
@@ -32,12 +36,7 @@ class UserResource extends JsonResource
             'direction'   => $this->direction?->libelle,
             'agence'      => $this->agence?->libelle,
 
-            // Permissions directes (ajoutées manuellement à cet acteur)
-            'permissions' => $this->whenLoaded('permissionsDirectes',
-                fn() => $this->permissionsDirectes->pluck('libelle')
-            ),
-
-            // Hiérarchie complète avec IDs pour le formulaire dépendant
+            // Hiérarchie complète avec IDs
             'hierarchie' => $this->service ? [
                 'agence_id'      => $this->service->departement?->direction?->agence_id,
                 'direction_id'   => $this->service->departement?->direction_id,
@@ -45,13 +44,20 @@ class UserResource extends JsonResource
                 'service_id'     => $this->service->id,
             ] : null,
 
+            // Permissions directes (ajoutées manuellement à cet acteur)
+            'permissions' => $this->whenLoaded('permissionsDirectes',
+                fn() => $this->permissionsDirectes->pluck('libelle')
+            ),
+
             // Permissions retirées individuellement à cet acteur
             'permissions_retirees' => $this->whenLoaded('permissionsRetirees',
                 fn() => $this->permissionsRetirees->pluck('libelle')
             ),
 
             // Toutes les permissions effectives : (rôle ∪ directes) − retirées
-            'toutes_permissions' => array_values($this->toutesLesPermissions()->toArray()),
+            'toutes_permissions' => array_values(
+                $this->toutesLesPermissions()->toArray()
+            ),
         ];
     }
 }

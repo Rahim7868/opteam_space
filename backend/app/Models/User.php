@@ -14,7 +14,7 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, Notifiable;
 
     protected $fillable = [
-        'nom', 'email', 'password', 'adresse',
+        'nom', 'email', 'password', 'adresse', 'fonction',
         'service_id', 'role_id',
         'is_active', 'must_change_password',
     ];
@@ -24,14 +24,12 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'password'            => 'hashed',
-            'is_active'           => 'boolean',
-            'must_change_password'=> 'boolean',
+            'password'             => 'hashed',
+            'is_active'            => 'boolean',
+            'must_change_password' => 'boolean',
         ];
-
     }
-
-    // ── Relations de base ──────────────────────────────────────
+    // ── Relations ─────────────────────────────────────────────
 
     public function service(): BelongsTo
     {
@@ -49,6 +47,7 @@ class User extends Authenticatable
         return $this->belongsToMany(Permission::class, 'permission_user');
     }
 
+    /** Permissions retirées individuellement à cet acteur */
     public function permissionsRetirees(): BelongsToMany
     {
         return $this->belongsToMany(Permission::class, 'permission_user_denied');
@@ -74,7 +73,7 @@ class User extends Authenticatable
         return $this->hasMany(BureauChange::class, 'validated_by');
     }
 
-    // ── Navigation hiérarchique automatique ───────────────────
+    // ── Navigation hiérarchique ────────────────────────────────
 
     public function getDepartementAttribute()
     {
@@ -91,13 +90,11 @@ class User extends Authenticatable
         return $this->service?->departement?->direction?->agence;
     }
 
-    // ── Logique des permissions (le cœur du système) ──────────
+    // ── Permissions ────────────────────────────────────────────
 
     /**
      * Toutes les permissions effectives de cet acteur :
      * (permissions du rôle ∪ permissions directes) − permissions retirées
-     *
-     * Les exceptions sont propres à l'acteur et ne touchent jamais le rôle.
      */
     public function toutesLesPermissions()
     {
@@ -115,15 +112,10 @@ class User extends Authenticatable
             ->values();
     }
 
-    /**
-     * Vérification simple : $user->hasPermission('creer_fixing')
-     */
     public function hasPermission(string $libelle): bool
     {
         return $this->toutesLesPermissions()->contains($libelle);
     }
-
-    // ── Helpers état du compte ─────────────────────────────────
 
     public function isActive(): bool
     {

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\DirectionRequest;
 use App\Http\Resources\DirectionResource;
 use App\Models\Direction;
+use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -33,6 +34,8 @@ class DirectionController extends Controller
     {
         $direction = Direction::create($request->validated());
 
+        AuditLogger::forModel('direction_created', $direction, 'Création direction : ' . $direction->libelle);
+
         return new DirectionResource($direction->load('agence'));
     }
 
@@ -45,6 +48,8 @@ class DirectionController extends Controller
     {
         $direction->update($request->validated());
 
+        AuditLogger::forModel('direction_updated', $direction, 'Modification direction : ' . $direction->libelle);
+
         return new DirectionResource($direction->load('agence'));
     }
 
@@ -55,6 +60,8 @@ class DirectionController extends Controller
                 'message' => 'Impossible de supprimer : des départements sont rattachés à cette direction.'
             ], 422);
         }
+
+        AuditLogger::forModel('direction_deleted', $direction, 'Suppression direction : ' . $direction->libelle);
 
         $direction->delete();
 

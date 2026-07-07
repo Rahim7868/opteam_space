@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\DepartementRequest;
 use App\Http\Resources\DepartementResource;
 use App\Models\Departement;
+use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -33,6 +34,8 @@ class DepartementController extends Controller
     {
         $departement = Departement::create($request->validated());
 
+        AuditLogger::forModel('departement_created', $departement, 'Création département : ' . $departement->libelle);
+
         return new DepartementResource($departement->load('direction.agence'));
     }
 
@@ -47,6 +50,8 @@ class DepartementController extends Controller
     {
         $departement->update($request->validated());
 
+        AuditLogger::forModel('departement_updated', $departement, 'Modification département : ' . $departement->libelle);
+
         return new DepartementResource($departement->load('direction.agence'));
     }
 
@@ -57,6 +62,8 @@ class DepartementController extends Controller
                 'message' => 'Impossible de supprimer : des services sont rattachés à ce département.'
             ], 422);
         }
+
+        AuditLogger::forModel('departement_deleted', $departement, 'Suppression département : ' . $departement->libelle);
 
         $departement->delete();
 

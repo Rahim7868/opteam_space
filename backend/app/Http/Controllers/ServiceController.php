@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ServiceRequest;
 use App\Http\Resources\ServiceResource;
 use App\Models\Service;
+use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -33,6 +34,8 @@ class ServiceController extends Controller
     {
         $service = Service::create($request->validated());
 
+        AuditLogger::forModel('service_created', $service, 'Création service : ' . $service->libelle);
+
         return new ServiceResource($service->load('departement.direction.agence'));
     }
 
@@ -47,6 +50,8 @@ class ServiceController extends Controller
     {
         $service->update($request->validated());
 
+        AuditLogger::forModel('service_updated', $service, 'Modification service : ' . $service->libelle);
+
         return new ServiceResource($service->load('departement.direction.agence'));
     }
 
@@ -57,6 +62,8 @@ class ServiceController extends Controller
                 'message' => 'Impossible de supprimer : des acteurs sont rattachés à ce service.'
             ], 422);
         }
+
+        AuditLogger::forModel('service_deleted', $service, 'Suppression service : ' . $service->libelle);
 
         $service->delete();
 

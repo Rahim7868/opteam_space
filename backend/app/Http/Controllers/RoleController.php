@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\RoleResource;
 use App\Models\Role;
+use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
@@ -30,6 +31,8 @@ class RoleController extends Controller
             $role->permissions()->sync(request('permission_ids'));
         }
 
+        AuditLogger::forModel('role_created', $role, 'Création rôle : ' . $role->libelle);
+
         return new RoleResource($role->load('permissions'));
     }
 
@@ -49,6 +52,8 @@ class RoleController extends Controller
         $role->update(['libelle' => request('libelle')]);
         $role->permissions()->sync(request('permission_ids', []));
 
+        AuditLogger::forModel('role_updated', $role, 'Modification rôle : ' . $role->libelle);
+
         return new RoleResource($role->load('permissions'));
     }
 
@@ -60,6 +65,8 @@ class RoleController extends Controller
                 'message' => 'Impossible de supprimer : des acteurs utilisent ce rôle.'
             ], 422);
         }
+
+        AuditLogger::forModel('role_deleted', $role, 'Suppression rôle : ' . $role->libelle);
 
         $role->delete();
 
