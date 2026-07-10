@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\BureauChangeRequest;
 use App\Http\Resources\BureauChangeResource;
+use App\Imports\BureauChangesImport;
 use App\Models\BureauChange;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Maatwebsite\Excel\Facades\Excel;
 
 class BureauChangeController extends Controller
 {
@@ -67,7 +69,6 @@ class BureauChangeController extends Controller
             ], 403);
         }
 
-        // Vérifier que c'est bien son bureau de change
         if ($bureauChange->created_by !== auth()->id()) {
             return response()->json([
                 'message' => 'Vous ne pouvez modifier que vos propres bureaux de change.'
@@ -83,6 +84,32 @@ class BureauChangeController extends Controller
         );
 
         return new BureauChangeResource($bureauChange->load('createur'));
+    }
+
+    // ✅ Nouvelle méthode import
+    public function import(): JsonResponse
+    {
+        request()->validate([
+            'fichier' => ['required', 'file', 'mimes:xlsx,xls', 'max:5120'],
+        ]);
+
+        $import = new BureauChangesImport(auth()->id());
+
+        Excel::import($import, request()->file('fichier'));
+
+        AuditLogger::log(
+            'bureau_import',
+            'BureauChange',
+            null,
+            'Import Excel : ' . $import->imported . ' importés, ' . $import->skipped . ' ignorés'
+        );
+
+        return response()->json([
+            'message'  => "{$import->imported} bureau(x) importé(s) avec succès.",
+            'imported' => $import->imported,
+            'skipped'  => $import->skipped,
+            'errors'   => $import->errors,
+        ]);
     }
 
     public function valider(BureauChange $bureauChange): JsonResponse

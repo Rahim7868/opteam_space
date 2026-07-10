@@ -14,45 +14,31 @@ class BureauChangeRequest extends FormRequest
 
     public function rules(): array
     {
-        // Récupère l'objet ou l'ID de bureau_change si on est en update
-        $bureauChange = $this->route('bureau_change') ?? $this->route('bureauChange');
-        $bureauChangeId = is_object($bureauChange) ? $bureauChange->id : $bureauChange;
+        $bureauChange = $this->route('bureauChange');
 
         return [
-            'numero_ordre' => [
-                'required',
-                'string',
-                'max:100',
-                Rule::unique('bureau_changes', 'numero_ordre')
-                    ->ignore($bureauChangeId),
-            ],
-
-            'designation' => ['required', 'string', 'max:255'],
-
-            'numero_agrement' => [
+            'numero_ordre'       => ['nullable', 'string', 'max:50'],
+            'designation'        => ['required', 'string', 'max:255'],
+            'numero_agrement'    => [
                 'required',
                 'string',
                 'max:100',
                 Rule::unique('bureau_changes', 'numero_agrement')
-                    ->ignore($bureauChangeId),
+                    ->ignore($bureauChange?->id),
             ],
-
             'representant_legal' => ['required', 'string', 'max:255'],
             'contact'            => ['nullable', 'string', 'max:255'],
             'adresse'            => ['nullable', 'string', 'max:255'],
-            // statut et created_by/validated_by gérés dans le controller
         ];
     }
 
     public function messages(): array
     {
         return [
-            'numero_ordre.required'      => 'Le numéro d\'ordre est obligatoire.',
-            'numero_ordre.unique'        => 'Ce numéro d\'ordre existe déjà.',
-            'designation.required'       => 'La désignation est obligatoire.',
-            'numero_agrement.required'   => 'Le numéro d\'agrément est obligatoire.',
-            'numero_agrement.unique'     => 'Ce numéro d\'agrément existe déjà.',
-            'representant_legal.required'=> 'Le représentant légal est obligatoire.',
+            'designation.required'        => 'La désignation est obligatoire.',
+            'numero_agrement.required'    => 'Le numéro d\'agrément est obligatoire.',
+            'numero_agrement.unique'      => 'Ce numéro d\'agrément existe déjà.',
+            'representant_legal.required' => 'Le représentant légal est obligatoire.',
         ];
     }
 }

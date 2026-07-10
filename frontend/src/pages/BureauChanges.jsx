@@ -1,4 +1,4 @@
-import { Check, Edit, Plus, Search, X } from 'lucide-react'
+import { Check, Edit, Plus, Search, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import DataTable from '../components/DataTable'
@@ -14,7 +14,6 @@ const emptyForm = {
 }
 
 export default function BureauChanges() {
-  // Ajout de user
   const { hasPermission, user } = useAuth()
 
   const canCreate   = hasPermission('creer_bureau_change')
@@ -30,7 +29,13 @@ export default function BureauChanges() {
   const [editing, setEditing] = useState(null)
   const [error, setError]     = useState('')
   const [success, setSuccess] = useState('')
-  const originalForm = useRef(null)
+  const originalForm          = useRef(null)
+
+  // Import Excel
+  const [importModal, setImportModal]   = useState(false)
+  const [importFile, setImportFile]     = useState(null)
+  const [importing, setImporting]       = useState(false)
+  const [importResult, setImportResult] = useState(null)
 
   function load() {
     setLoading(true)
@@ -46,8 +51,7 @@ export default function BureauChanges() {
 
   async function submit(e) {
     e.preventDefault()
-    setError('')
-    setSuccess('')
+    setError(''); setSuccess('')
     try {
       if (editing) {
         if (JSON.stringify(form) === JSON.stringify(originalForm.current)) {
@@ -86,15 +90,7 @@ export default function BureauChanges() {
 
   function startEdit(row) {
     setEditing(row.id)
-    setForm({
-      numero_ordre:       row.numero_ordre ?? '',
-      designation:        row.designation,
-      numero_agrement:    row.numero_agrement,
-      representant_legal: row.representant_legal,
-      contact:            row.contact ?? '',
-      adresse:            row.adresse ?? '',
-    })
-    originalForm.current = {
+    const data = {
       numero_ordre:       row.numero_ordre ?? '',
       designation:        row.designation,
       numero_agrement:    row.numero_agrement,
@@ -102,7 +98,31 @@ export default function BureauChanges() {
       contact:            row.contact ?? '',
       adresse:            row.adresse ?? '',
     }
+    setForm(data)
+    originalForm.current = { ...data }
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  async function handleImport(e) {
+    e.preventDefault()
+    if (!importFile) return
+
+    setImporting(true)
+    setImportResult(null)
+
+    const payload = new FormData()
+    payload.append('fichier', importFile)
+
+    try {
+      const { data } = await api.post('/bureau-changes/import', payload)
+      setImportResult(data)
+      load()
+    } catch (err) {
+      setError(getApiError(err))
+      setImportModal(false)
+    } finally {
+      setImporting(false)
+    }
   }
 
   const columns = [
@@ -110,11 +130,17 @@ export default function BureauChanges() {
     { key: 'designation',        label: 'Désignation' },
     { key: 'numero_agrement',    label: 'N° Agrément' },
     { key: 'representant_legal', label: 'Représentant' },
-    { key: 'contact',            label: 'Contact' },
-    { key: 'adresse',            label: 'Adresse' },
+    {
+      key: 'contact', label: 'Contact',
+      render: (row) => row.contact || <span className="text-slate-400">N/A</span>,
+    },
+    {
+      key: 'adresse', label: 'Adresse',
+      render: (row) => row.adresse || <span className="text-slate-400">N/A</span>,
+    },
     {
       key: 'createur', label: 'Créé par',
-      render: (row) => row.createur?.nom ?? '—',
+      render: (row) => row.createur?.nom ?? <span className="text-slate-400">N/A</span>,
     },
     {
       key: 'statut', label: 'Statut',
@@ -124,28 +150,21 @@ export default function BureauChanges() {
       key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          {/* Modifier uniquement ses propres bureaux de change */}
           {canModify && row.statut === 'en_attente' && row.createur?.id === user?.id && (
-            <button
-              onClick={() => startEdit(row)}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-            >
+            <button onClick={() => startEdit(row)}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
               <Edit size={13} /> Modifier
             </button>
           )}
           {canValidate && row.statut === 'en_attente' && (
-            <button
-              onClick={() => valider(row.id)}
-              className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100"
-            >
+            <button onClick={() => valider(row.id)}
+              className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100">
               <Check size={13} /> Valider
             </button>
           )}
           {canReject && row.statut === 'en_attente' && (
-            <button
-              onClick={() => rejeter(row.id)}
-              className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100"
-            >
+            <button onClick={() => rejeter(row.id)}
+              className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100">
               <X size={13} /> Rejeter
             </button>
           )}
@@ -159,6 +178,16 @@ export default function BureauChanges() {
       <PageHeader
         title="Bureaux de change"
         subtitle="Gestion et validation des bureaux de change."
+        action={
+          canCreate && (
+            <button
+              onClick={() => { setImportModal(true); setImportResult(null); setImportFile(null) }}
+              className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700"
+            >
+              <Upload size={16} /> Importer Excel
+            </button>
+          )
+        }
       />
 
       <ErrorAlert message={error} onDismiss={() => setError('')} />
@@ -168,18 +197,13 @@ export default function BureauChanges() {
       <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px]">
         <div className="relative">
           <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
-          <input
-            className="field pl-9"
+          <input className="field pl-9"
             placeholder="Rechercher par désignation ou agrément..."
             value={filters.search}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
-          />
+            onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })} />
         </div>
-        <select
-          className="field"
-          value={filters.statut}
-          onChange={(e) => setFilters({ ...filters, statut: e.target.value, page: 1 })}
-        >
+        <select className="field" value={filters.statut}
+          onChange={(e) => setFilters({ ...filters, statut: e.target.value, page: 1 })}>
           <option value="">Tous statuts</option>
           <option value="en_attente">En attente</option>
           <option value="valide">Validés</option>
@@ -187,12 +211,10 @@ export default function BureauChanges() {
         </select>
       </div>
 
-      {/* Formulaire */}
+      {/* Formulaire création/modification */}
       {(canCreate || (canModify && editing)) && (
-        <form
-          onSubmit={submit}
-          className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-        >
+        <form onSubmit={submit}
+          className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h3 className="mb-3 text-sm font-bold text-slate-700">
             {editing ? 'Modifier le bureau de change' : 'Ajouter un bureau de change'}
           </h3>
@@ -222,14 +244,12 @@ export default function BureauChanges() {
           </div>
           <div className="mt-3 flex gap-2">
             <button className="btn btn-primary">
-              <Plus size={16} />
-              {editing ? 'Enregistrer' : 'Ajouter'}
+              <Plus size={16} /> {editing ? 'Enregistrer' : 'Ajouter'}
             </button>
             {editing && (
               <button type="button"
                 onClick={() => { setEditing(null); setForm(emptyForm) }}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-              >
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
                 Annuler
               </button>
             )}
@@ -244,6 +264,97 @@ export default function BureauChanges() {
         loading={loading}
         onPage={(page) => setFilters({ ...filters, page })}
       />
+
+      {/* Modal Import Excel */}
+      {importModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-800">
+              Importer des bureaux de change
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Le fichier Excel doit contenir les colonnes dans cet ordre :
+            </p>
+
+            {/* Exemple de format */}
+            <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
+              <table className="min-w-full text-xs">
+                <thead className="bg-slate-50">
+                  <tr>
+                    {['numero_ordre', 'designation', 'numero_agrement', 'representant_legal', 'contact', 'adresse'].map(h => (
+                      <th key={h} className="px-2 py-1.5 text-left font-semibold text-slate-600">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="border-t border-slate-100">
+                    <td className="px-2 py-1.5 text-slate-500">BC001</td>
+                    <td className="px-2 py-1.5 text-slate-500">Bureau A</td>
+                    <td className="px-2 py-1.5 text-slate-500">AGR-001</td>
+                    <td className="px-2 py-1.5 text-slate-500">Jean Dupont</td>
+                    <td className="px-2 py-1.5 text-slate-500">620...</td>
+                    <td className="px-2 py-1.5 text-slate-500">Conakry</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Résultat import */}
+            {importResult && (
+              <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+                <p className="text-sm font-semibold text-emerald-700">
+                  ✅ {importResult.imported} bureau(x) importé(s)
+                  {importResult.skipped > 0 && ` — ${importResult.skipped} ignoré(s)`}
+                </p>
+                {importResult.errors?.length > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {importResult.errors.map((err, i) => (
+                      <li key={i} className="text-xs text-amber-700">⚠️ {err}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {!importResult && (
+              <form onSubmit={handleImport} className="mt-4">
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="field"
+                  onChange={(e) => setImportFile(e.target.files[0])}
+                  required
+                />
+                <div className="mt-4 flex justify-end gap-3">
+                  <button type="button"
+                    onClick={() => setImportModal(false)}
+                    className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                    Annuler
+                  </button>
+                  <button type="submit" disabled={importing || !importFile}
+                    className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700 disabled:opacity-50">
+                    {importing
+                      ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      : <Upload size={16} />
+                    }
+                    {importing ? 'Importation...' : 'Importer'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {importResult && (
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => { setImportModal(false); setImportResult(null) }}
+                  className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700">
+                  Fermer
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   )
 }

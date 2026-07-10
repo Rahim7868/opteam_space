@@ -16,7 +16,7 @@ use App\Http\Controllers\AuditLogController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth publique avec rate limiting strict ────────────────────
-// ✅ Maximum 5 tentatives par minute par IP
+//Maximum 5 tentatives par minute par IP
 Route::middleware('throttle:5,1')->group(function () {
     Route::post('/auth/login', [AuthController::class, 'login']);
 });
@@ -53,6 +53,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/fixings/{fixing}/rejeter', [FixingController::class, 'rejeter']);
 
     // ── Bureaux de change ──────────────────────────────────────
+    Route::post('/bureau-changes/import', [BureauChangeController::class, 'import']);
     Route::apiResource('bureau-changes', BureauChangeController::class);
     Route::post('/bureau-changes/{bureauChange}/valider', [BureauChangeController::class, 'valider']);
     Route::post('/bureau-changes/{bureauChange}/rejeter', [BureauChangeController::class, 'rejeter']);
