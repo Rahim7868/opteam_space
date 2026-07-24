@@ -50,6 +50,15 @@ function ActionBadge({ action }) {
   )
 }
 
+function userLabel(row) {
+  if (row.user?.nom) return row.user.nom
+
+  const description = row.description || ''
+  const match = description.match(/(?:Connexion|Déconnexion|Deconnexion) de (.+)$/i)
+
+  return match?.[1] || 'Système'
+}
+
 export default function AuditLogTable({
   category,
   title,
@@ -88,9 +97,7 @@ export default function AuditLogTable({
     },
     {
       key: 'user', label: 'Utilisateur',
-      render: (row) => row.user
-        ? <div className="font-semibold text-slate-800 text-sm">{row.user.nom}</div>
-        : <span className="text-slate-400">N/A</span>,
+      render: (row) => <div className="text-sm font-semibold text-slate-800">{userLabel(row)}</div>,
     },
     {
       key: 'action', label: 'Action',

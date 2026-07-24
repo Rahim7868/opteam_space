@@ -6,6 +6,8 @@ import AppLayout from './layouts/AppLayout'
 import Login          from './pages/Login'
 import ChangePassword from './pages/ChangePassword'
 import Profile from './pages/Profile'
+import ForgotPassword from './pages/ForgotPassword'  // NOUVEAU
+import ResetPassword from './pages/ResetPassword'    // NOUVEAU
 
 // Dashboard
 import Dashboard from './pages/Dashboard'
@@ -34,7 +36,10 @@ import AuditLocationLogs from './pages/AuditLocationLogs'
 export default function App() {
   return (
     <Routes>
+      {/* Routes publiques */}
       <Route path="/login" element={<Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />  {/* NOUVEAU */}
+      <Route path="/reset-password" element={<ResetPassword />} />    {/* NOUVEAU */}
 
       <Route element={<ProtectedRoute />}>
         <Route path="/change-password" element={<ChangePassword />} />

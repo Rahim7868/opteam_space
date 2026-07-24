@@ -32,12 +32,15 @@ class BureauChangesImport implements ToCollection, WithHeadingRow, WithValidatio
                 continue;
             }
 
+            // Nettoyer le contact (retirer les espaces et caractères non numériques)
+            $contact = isset($row['contact']) ? preg_replace('/\s+/', '', (string) $row['contact']) : null;
+
             BureauChange::create([
                 'numero_ordre'       => $row['numero_ordre'] ?? null,
                 'designation'        => $row['designation'],
                 'numero_agrement'    => $row['numero_agrement'],
                 'representant_legal' => $row['representant_legal'],
-                'contact'            => $row['contact'] ?? null,
+                'contact'            => $contact,
                 'adresse'            => $row['adresse'] ?? null,
                 'statut'             => 'en_attente',
                 'created_by'         => $this->userId,
@@ -53,6 +56,7 @@ class BureauChangesImport implements ToCollection, WithHeadingRow, WithValidatio
             '*.designation'        => ['required', 'string'],
             '*.numero_agrement'    => ['required', 'string'],
             '*.representant_legal' => ['required', 'string'],
+            '*.contact'            => ['required', 'regex:/^[0-9]{9}$|^\s*[0-9](\s*[0-9]\s*){8}$/'],
         ];
     }
 
@@ -62,6 +66,8 @@ class BureauChangesImport implements ToCollection, WithHeadingRow, WithValidatio
             '*.designation.required'        => 'La colonne designation est obligatoire.',
             '*.numero_agrement.required'    => 'La colonne numero_agrement est obligatoire.',
             '*.representant_legal.required' => 'La colonne representant_legal est obligatoire.',
+            '*.contact.required'            => 'La colonne contact est obligatoire.',
+            '*.contact.regex'               => 'Le contact doit contenir exactement 9 chiffres (les espaces intermédiaires sont ignorés lors du traitement).',
         ];
     }
 }

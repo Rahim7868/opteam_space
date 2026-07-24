@@ -23,4 +23,15 @@ class AuditLogger
     {
         self::log($action, class_basename($model), (int) $model->getKey(), $description);
     }
+
+    public static function logForUser(int $userId, string $action, string $entityType, ?int $entityId = null, ?string $description = null): void
+    {
+        AuditLog::create([
+            'user_id' => $userId,
+            'action' => $action,
+            'entity_type' => $entityType,
+            'entity_id' => $entityId,
+            'description' => $description,
+        ]);
+    }
 }

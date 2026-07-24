@@ -1,6 +1,7 @@
 import { Check, Edit, Plus, Search, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
+import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
 import ErrorAlert from '../components/ErrorAlert'
 import SuccessAlert from '../components/SuccessAlert'
@@ -37,6 +38,11 @@ export default function BureauChanges() {
   const [importing, setImporting]       = useState(false)
   const [importResult, setImportResult] = useState(null)
 
+  // Confirmation modals
+  const [submitConfirm, setSubmitConfirm]       = useState(false)
+  const [validateConfirm, setValidateConfirm]   = useState({ open: false, id: null })
+  const [rejectConfirm, setRejectConfirm]       = useState({ open: false, id: null })
+
   function load() {
     setLoading(true)
     const params = Object.fromEntries(
@@ -49,8 +55,7 @@ export default function BureauChanges() {
 
   useEffect(load, [filters])
 
-  async function submit(e) {
-    e.preventDefault()
+  async function submit() {
     setError(''); setSuccess('')
     try {
       if (editing) {
@@ -73,6 +78,7 @@ export default function BureauChanges() {
   async function valider(id) {
     try {
       await api.post(`/bureau-changes/${id}/valider`)
+      setSuccess('Bureau de change validé.')
       load()
     } catch (err) {
       setError(getApiError(err))
@@ -82,6 +88,7 @@ export default function BureauChanges() {
   async function rejeter(id) {
     try {
       await api.post(`/bureau-changes/${id}/rejeter`, {})
+      setSuccess('Bureau de change rejeté.')
       load()
     } catch (err) {
       setError(getApiError(err))
@@ -157,13 +164,13 @@ export default function BureauChanges() {
             </button>
           )}
           {canValidate && row.statut === 'en_attente' && (
-            <button onClick={() => valider(row.id)}
+            <button onClick={() => setValidateConfirm({ open: true, id: row.id })}
               className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100">
               <Check size={13} /> Valider
             </button>
           )}
           {canReject && row.statut === 'en_attente' && (
-            <button onClick={() => rejeter(row.id)}
+            <button onClick={() => setRejectConfirm({ open: true, id: row.id })}
               className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100">
               <X size={13} /> Rejeter
             </button>
@@ -213,7 +220,7 @@ export default function BureauChanges() {
 
       {/* Formulaire création/modification */}
       {(canCreate || (canModify && editing)) && (
-        <form onSubmit={submit}
+        <form onSubmit={(e) => { e.preventDefault(); setSubmitConfirm(true) }}
           className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <h3 className="mb-3 text-sm font-bold text-slate-700">
             {editing ? 'Modifier le bureau de change' : 'Ajouter un bureau de change'}
@@ -263,6 +270,45 @@ export default function BureauChanges() {
         meta={meta}
         loading={loading}
         onPage={(page) => setFilters({ ...filters, page })}
+      />
+
+      {/* Modal confirmation création/modification */}
+      <ConfirmModal
+        open={submitConfirm}
+        title={editing ? 'Confirmer la modification ?' : 'Confirmer la création ?'}
+        message={editing ? 'Les modifications seront enregistrées définitivement.' : 'Êtes-vous sûr de vouloir créer cet élément ?'}
+        confirmText={editing ? 'Enregistrer' : 'Confirmer'}
+        onConfirm={async () => { setSubmitConfirm(false); await submit() }}
+        onCancel={() => setSubmitConfirm(false)}
+      />
+
+      {/* Modal confirmation validation */}
+      <ConfirmModal
+        open={validateConfirm.open}
+        title="Confirmer l'approbation ?"
+        message="Êtes-vous sûr de vouloir approuver ce bureau de change ?"
+        confirmText="Approuver"
+        onConfirm={async () => {
+          const id = validateConfirm.id
+          setValidateConfirm({ open: false, id: null })
+          await valider(id)
+        }}
+        onCancel={() => setValidateConfirm({ open: false, id: null })}
+      />
+
+      {/* Modal confirmation rejet */}
+      <ConfirmModal
+        open={rejectConfirm.open}
+        title="Confirmer le refus ?"
+        message="Êtes-vous sûr de vouloir refuser ce bureau de change ?"
+        danger
+        confirmText="Refuser"
+        onConfirm={async () => {
+          const id = rejectConfirm.id
+          setRejectConfirm({ open: false, id: null })
+          await rejeter(id)
+        }}
+        onCancel={() => setRejectConfirm({ open: false, id: null })}
       />
 
       {/* Modal Import Excel */}

@@ -1,6 +1,7 @@
 <?php
 namespace App\Models;
 
+use App\Notifications\ResetPasswordNotification;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -12,6 +13,15 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
+
+    /**
+     * Envoyer la notification de réinitialisation de mot de passe
+     * avec un lien pointant vers le frontend React.
+     */
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify(new ResetPasswordNotification($token));
+    }
 
     protected $fillable = [
         'nom', 'email', 'password', 'adresse', 'fonction',

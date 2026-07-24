@@ -71,29 +71,29 @@ export default function AppLayout() {
   const showStructure = structureLinks.length > 0
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-transparent">
 
       {/* ── Overlay mobile ────────────────────────────────── */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-30 bg-slate-950/45 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* ── Sidebar ───────────────────────────────────────── */}
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200 bg-white transition-transform duration-200 lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-slate-200/80 bg-white/95 shadow-2xl shadow-slate-950/5 backdrop-blur-xl transition-transform duration-200 lg:translate-x-0 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Logo */}
-        <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-200 px-5">
+        <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-100 px-5">
           <div>
             <div className="text-lg font-black tracking-wide text-teal-800">
               OPTEAM_SPACE
             </div>
-            <div className="text-xs font-medium uppercase text-slate-400">
+            <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
               {user?.role?.libelle ?? 'Utilisateur'}
             </div>
           </div>
@@ -106,7 +106,7 @@ export default function AppLayout() {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+        <nav className="flex-1 space-y-1 overflow-y-auto p-4">
 
           {/* Liens principaux */}
           {mainLinks.map(({ to, label, icon: Icon }) => (
@@ -116,9 +116,9 @@ export default function AppLayout() {
               end={to === '/'}
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${
                   isActive
-                    ? 'bg-teal-50 text-teal-800'
+                    ? 'bg-teal-50 text-teal-800 shadow-sm ring-1 ring-teal-100'
                     : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
                 }`
               }
@@ -133,7 +133,7 @@ export default function AppLayout() {
             <div className="pt-2">
               <button
                 onClick={() => setActeursOpen(!acteursOpen)}
-                className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
               >
                 <span className="flex items-center gap-3">
                   <Users size={18} />
@@ -173,7 +173,7 @@ export default function AppLayout() {
             <div className="pt-2">
               <button
                 onClick={() => setStructureOpen(!structureOpen)}
-                className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
               >
                 <span className="flex items-center gap-3">
                   <Network size={18} />
@@ -213,11 +213,11 @@ export default function AppLayout() {
             <div className="pt-2">
               <button
                 onClick={() => setHistoryOpen(!historyOpen)}
-                className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 hover:text-slate-950"
+                className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
               >
                 <span className="flex items-center gap-3">
                   <History size={18} />
-                  Historique
+                  Audits
                 </span>
                 <ChevronDown
                   size={16}
@@ -251,10 +251,10 @@ export default function AppLayout() {
         </nav>
 
         {/* ── Pied de sidebar : infos utilisateur ───────────── */}
-        <div className="shrink-0 border-t border-slate-200 p-4 space-y-3">
+        <div className="shrink-0 space-y-3 border-t border-slate-100 p-4">
           <div className="flex items-center gap-3">
             {/* Avatar initiale */}
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-100 text-sm font-bold text-teal-800">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-teal-100 text-sm font-black text-teal-800 ring-1 ring-teal-200">
               {user?.nom?.charAt(0)?.toUpperCase() ?? '?'}
             </div>
             <div className="min-w-0">
@@ -272,7 +272,7 @@ export default function AppLayout() {
               to="/profile"
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
-                `flex items-center justify-center gap-2 rounded-lg border border-slate-200 py-2 text-sm font-medium transition ${
+                `flex items-center justify-center gap-2 rounded-xl border border-slate-200 py-2 text-sm font-semibold transition ${
                   isActive
                     ? 'bg-teal-50 text-teal-800'
                     : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
@@ -283,7 +283,7 @@ export default function AppLayout() {
               Profil
             </NavLink>
             <button
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-rose-600"
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-rose-600"
               onClick={logout}
             >
               <LogOut size={16} />
@@ -297,7 +297,7 @@ export default function AppLayout() {
       <div className="lg:pl-72">
 
         {/* Navbar */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur lg:px-8">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200/70 bg-white/80 px-4 shadow-sm shadow-slate-950/[0.02] backdrop-blur-xl lg:px-8">
           <button
             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 lg:hidden"
             onClick={() => setSidebarOpen(true)}

@@ -30,9 +30,18 @@ class AuthController extends Controller
             ]);
         }
 
-        $token = $user->createToken('app-token')->plainTextToken;
+        // Récupérer le paramètre "remember"
+        $remember = $request->boolean('remember', false);
 
-        AuditLogger::log(
+        // Si "Se souvenir de moi" est coché, on prolonge la session (30 jours)
+        if ($remember) {
+            $token = $user->createToken('app-token', ['*'], now()->addDays(30))->plainTextToken;
+        } else {
+            $token = $user->createToken('app-token')->plainTextToken;
+        }
+
+        AuditLogger::logForUser(
+            $user->id,
             'login',
             'User',
             $user->id,

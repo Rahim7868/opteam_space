@@ -1,8 +1,10 @@
 import { Check, Edit, Plus, Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
+import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
 import ErrorAlert from '../components/ErrorAlert'
+import FixingEvolutionChart from '../components/FixingEvolutionChart'
 import SuccessAlert from '../components/SuccessAlert'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
@@ -17,6 +19,14 @@ const emptyForm = {
 
 const currencies = ['EUR', 'USD', 'GBP', 'CAD', 'CHF', 'XOF']
 
+function formatAmount(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return 'N/A'
+
+  return Number(value).toLocaleString('fr-FR', {
+    maximumFractionDigits: 6,
+  })
+}
+
 export default function Fixings() {
   //  Ajout de user
   const { hasPermission, user } = useAuth()
@@ -27,14 +37,22 @@ export default function Fixings() {
   const canReject   = hasPermission('rejeter_fixing')
 
   const [rows, setRows]           = useState([])
+  const [chartRows, setChartRows] = useState([])
   const [meta, setMeta]           = useState(null)
   const [loading, setLoading]     = useState(true)
+  const [chartLoading, setChartLoading] = useState(true)
   const [filters, setFilters]     = useState({ statut: '', devise: '', page: 1 })
   const [form, setForm]           = useState(emptyForm)
   const [editingId, setEditingId] = useState(null)
   const [error, setError]         = useState('')
   const [success, setSuccess]     = useState('')
   const originalForm = useRef(null)
+
+  // Confirmation modals
+  const [submitConfirm, setSubmitConfirm]     = useState(false)
+  const [validateConfirm, setValidateConfirm] = useState({ open: false, id: null })
+  const [rejectConfirm, setRejectConfirm]     = useState({ open: false, id: null })
+  const [duplicateModal, setDuplicateModal]    = useState(false)
 
   function load() {
     setLoading(true)
@@ -46,10 +64,17 @@ export default function Fixings() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(load, [filters])
+  function loadChartData() {
+    setChartLoading(true)
+    api.get('/fixings', { params: { per_page: 500 } })
+      .then(({ data }) => setChartRows(data.data))
+      .finally(() => setChartLoading(false))
+  }
 
-  async function submit(e) {
-    e.preventDefault()
+  useEffect(load, [filters])
+  useEffect(loadChartData, [])
+
+  async function submit() {
     setError('')
     setSuccess('')
 
@@ -68,12 +93,23 @@ export default function Fixings() {
         setEditingId(null)
         setSuccess('Fixing modifié avec succès.')
       } else {
-        await api.post('/fixings', payload)
+        const { data } = await api.post('/fixings', payload)
+        // Vérifier si le backend a renvoyé une erreur de doublon (409)
+        if (data?.error_code === 'DUPLICATE_FIXING') {
+          setDuplicateModal(true)
+          return
+        }
         setSuccess('Fixing créé avec succès.')
       }
       setForm(emptyForm)
       load()
+      loadChartData()
     } catch (err) {
+      // Gérer le cas 409 Conflict (doublon)
+      if (err.response?.status === 409 && err.response?.data?.error_code === 'DUPLICATE_FIXING') {
+        setDuplicateModal(true)
+        return
+      }
       setError(getApiError(err))
     }
   }
@@ -81,7 +117,9 @@ export default function Fixings() {
   async function valider(id) {
     try {
       await api.post(`/fixings/${id}/valider`)
+      setSuccess('Fixing validé avec succès.')
       load()
+      loadChartData()
     } catch (err) {
       setError(getApiError(err))
     }
@@ -90,7 +128,9 @@ export default function Fixings() {
   async function rejeter(id) {
     try {
       await api.post(`/fixings/${id}/rejeter`, {})
+      setSuccess('Fixing rejeté.')
       load()
+      loadChartData()
     } catch (err) {
       setError(getApiError(err))
     }
@@ -101,7 +141,7 @@ export default function Fixings() {
     { key: 'devise',      label: 'Devise' },
     {
       key: 'cours', label: 'Cours',
-      render: (row) => Number(row.cours).toFixed(4),
+      render: (row) => <span className="font-semibold text-slate-900">{formatAmount(row.cours)}</span>,
     },
     {
       key: 'variation', label: 'Variation',
@@ -110,10 +150,10 @@ export default function Fixings() {
           return <span className="text-slate-400 text-xs">N/A</span>
         }
         const v = Number(row.variation)
-        if (v === 0) return <span className="text-slate-500 text-xs">0.0000</span>
+        if (v === 0) return <span className="text-slate-500 text-xs">0</span>
         return (
           <span className={`font-semibold text-xs ${v > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-            {v > 0 ? '+' : ''}{v.toFixed(4)}
+            {v > 0 ? '+' : ''}{formatAmount(v)}
           </span>
         )
       },
@@ -163,7 +203,7 @@ export default function Fixings() {
           )}
           {canValidate && row.statut === 'en_attente' && (
             <button
-              onClick={() => valider(row.id)}
+              onClick={() => setValidateConfirm({ open: true, id: row.id })}
               className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 transition"
             >
               <Check size={13} /> Valider
@@ -171,7 +211,7 @@ export default function Fixings() {
           )}
           {canReject && row.statut === 'en_attente' && (
             <button
-              onClick={() => rejeter(row.id)}
+              onClick={() => setRejectConfirm({ open: true, id: row.id })}
               className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100 transition"
             >
               <X size={13} /> Rejeter
@@ -221,8 +261,8 @@ export default function Fixings() {
       {/* Formulaire création/modification */}
       {(canCreate || (canModify && editingId)) && (
         <form
-          onSubmit={submit}
-          className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm grid gap-3 md:grid-cols-4"
+          onSubmit={(e) => { e.preventDefault(); setSubmitConfirm(true) }}
+          className="panel animate-enter mb-5 grid gap-3 p-5 md:grid-cols-4"
         >
           <input
             type="date"
@@ -261,7 +301,7 @@ export default function Fixings() {
               <button
                 type="button"
                 onClick={() => { setEditingId(null); setForm(emptyForm) }}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                className="btn btn-secondary"
               >
                 Annuler
               </button>
@@ -277,6 +317,67 @@ export default function Fixings() {
         loading={loading}
         onPage={(page) => setFilters({ ...filters, page })}
       />
+
+      <FixingEvolutionChart fixings={chartRows} loading={chartLoading} />
+
+      {/* Modal confirmation création/modification */}
+      <ConfirmModal
+        open={submitConfirm}
+        title={editingId ? 'Confirmer la modification ?' : 'Confirmer la création ?'}
+        message={editingId ? 'Les modifications seront enregistrées définitivement.' : 'Êtes-vous sûr de vouloir créer cet élément ?'}
+        confirmText={editingId ? 'Enregistrer' : 'Confirmer'}
+        onConfirm={async () => { setSubmitConfirm(false); await submit() }}
+        onCancel={() => setSubmitConfirm(false)}
+      />
+
+      {/* Modal confirmation validation */}
+      <ConfirmModal
+        open={validateConfirm.open}
+        title="Confirmer l'approbation ?"
+        message="Êtes-vous sûr de vouloir approuver ce fixing ?"
+        confirmText="Approuver"
+        onConfirm={async () => {
+          const id = validateConfirm.id
+          setValidateConfirm({ open: false, id: null })
+          await valider(id)
+        }}
+        onCancel={() => setValidateConfirm({ open: false, id: null })}
+      />
+
+      {/* Modal confirmation rejet */}
+      <ConfirmModal
+        open={rejectConfirm.open}
+        title="Confirmer le refus ?"
+        message="Êtes-vous sûr de vouloir refuser ce fixing ?"
+        danger
+        confirmText="Refuser"
+        onConfirm={async () => {
+          const id = rejectConfirm.id
+          setRejectConfirm({ open: false, id: null })
+          await rejeter(id)
+        }}
+        onCancel={() => setRejectConfirm({ open: false, id: null })}
+      />
+
+      {/* Modal Fixing doublon */}
+      {duplicateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-slate-800">Fixing déjà existant</h3>
+            <p className="mt-2 text-sm text-slate-500">
+              Un fixing pour cette devise existe déjà à cette date.
+            </p>
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => { setDuplicateModal(false); setForm(emptyForm) }}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition"
+              >
+                Voir la liste des fixings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </>
   )

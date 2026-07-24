@@ -19,6 +19,7 @@ export default function Permissions() {
   const originalForm = useRef(null)
   const [search, setSearch]   = useState('')
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null })
+  const [submitConfirm, setSubmitConfirm] = useState(false)
 
   function load() {
     setLoading(true)
@@ -29,8 +30,7 @@ export default function Permissions() {
 
   useEffect(load, [])
 
-  async function submit(e) {
-    e.preventDefault()
+  async function submit() {
     setError(''); setSuccess('')
     try {
       if (editing) {
@@ -110,7 +110,7 @@ export default function Permissions() {
       </div>
 
       <form
-        onSubmit={submit}
+        onSubmit={(e) => { e.preventDefault(); setSubmitConfirm(true) }}
         className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex gap-3 items-end"
       >
         <div className="flex-1">
@@ -151,11 +151,21 @@ export default function Permissions() {
         title="Confirmer la suppression"
         message="Cette action est irréversible."
         danger={true}
+        confirmText="Supprimer"
         onConfirm={async () => {
           await destroy(confirmModal.id)
           setConfirmModal({ open: false, id: null })
         }}
         onCancel={() => setConfirmModal({ open: false, id: null })}
+      />
+
+      <ConfirmModal
+        open={submitConfirm}
+        title={editing ? 'Confirmer la modification ?' : 'Confirmer la création ?'}
+        message={editing ? 'Les modifications seront enregistrées définitivement.' : 'Êtes-vous sûr de vouloir créer cet élément ?'}
+        confirmText={editing ? 'Enregistrer' : 'Confirmer'}
+        onConfirm={async () => { setSubmitConfirm(false); await submit() }}
+        onCancel={() => setSubmitConfirm(false)}
       />
     </>
   )

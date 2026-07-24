@@ -13,12 +13,19 @@ use App\Http\Controllers\FixingController;
 use App\Http\Controllers\BureauChangeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\ForgotPasswordController; // AJOUTER CETTE LIGNE
 use Illuminate\Support\Facades\Route;
 
 // ── Auth publique avec rate limiting strict ────────────────────
 //Maximum 5 tentatives par minute par IP
 Route::middleware('throttle:5,1')->group(function () {
     Route::post('/auth/login', [AuthController::class, 'login']);
+});
+
+// ── Routes mot de passe oublié (avec rate limiting) ───────────
+Route::middleware('throttle:5,10')->group(function () {
+    Route::post('/password/email', [ForgotPasswordController::class, 'sendResetLinkEmail']);
+    Route::post('/password/reset', [ForgotPasswordController::class, 'resetPassword']);
 });
 
 // ── Auth protégée ─────────────────────────────────────────────

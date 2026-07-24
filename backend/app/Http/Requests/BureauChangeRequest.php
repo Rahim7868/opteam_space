@@ -27,7 +27,7 @@ class BureauChangeRequest extends FormRequest
                     ->ignore($bureauChange?->id),
             ],
             'representant_legal' => ['required', 'string', 'max:255'],
-            'contact'            => ['nullable', 'string', 'max:255'],
+            'contact'            => ['required', 'string', 'regex:/^[0-9]{9}$/'],
             'adresse'            => ['nullable', 'string', 'max:255'],
         ];
     }
@@ -39,6 +39,8 @@ class BureauChangeRequest extends FormRequest
             'numero_agrement.required'    => 'Le numéro d\'agrément est obligatoire.',
             'numero_agrement.unique'      => 'Ce numéro d\'agrément existe déjà.',
             'representant_legal.required' => 'Le représentant légal est obligatoire.',
+            'contact.required'            => 'Le numéro de contact est obligatoire.',
+            'contact.regex'               => 'Le numéro de contact doit être composé de 9 chiffres exacts et sans espaces (ex: 622111111).',
         ];
     }
 }

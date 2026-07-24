@@ -52,9 +52,21 @@ class FixingController extends Controller
         return FixingResource::collection($fixings);
     }
 
-    public function store(FixingRequest $request): FixingResource
+    public function store(FixingRequest $request): FixingResource|JsonResponse
     {
         $data = $request->validated();
+
+        // Vérification anti-doublon : même devise + même date
+        $exists = Fixing::where('devise', $data['devise'])
+            ->where('date_fixing', $data['date_fixing'])
+            ->exists();
+
+        if ($exists) {
+            return response()->json([
+                'message'    => 'Un fixing pour cette devise existe déjà à cette date.',
+                'error_code' => 'DUPLICATE_FIXING',
+            ], 409);
+        }
 
         if ($request->hasFile('piece_jointe')) {
             $data['piece_jointe'] = $request->file('piece_jointe')

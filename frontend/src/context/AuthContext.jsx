@@ -42,8 +42,12 @@ export function AuthProvider({ children }) {
     return Object.values(perms).includes(permission)
   }, [user])
 
-  const login = useCallback(async (credentials) => {
-    const { data } = await api.post('/auth/login', credentials)
+  // MODIFICATION : ajout du paramètre remember
+  const login = useCallback(async (credentials, remember = false) => {
+    const { data } = await api.post('/auth/login', {
+      ...credentials,
+      remember
+    })
     const userData = data?.user?.data ?? data?.user
 
     localStorage.setItem('opteam_token', data.token)

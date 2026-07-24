@@ -81,7 +81,7 @@ class UserController extends Controller
         AuditLogger::forModel($action, $user, $label . ' du compte de ' . $user->nom);
 
         return response()->json([
-            'message'   => $user->is_active ? 'Compte activé.' : 'Compte désactivé.',
+            'message'   => $user->is_active ? 'Compte activé.' : 'Ce Compte a été désactivé.',
             'is_active' => $user->is_active,
         ]);
     }

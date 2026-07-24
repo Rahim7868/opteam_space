@@ -1,6 +1,7 @@
 import { Edit, Plus, Search, ToggleLeft, ToggleRight, Shield } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
+import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
 import ErrorAlert from '../components/ErrorAlert'
 import SuccessAlert from '../components/SuccessAlert'
@@ -37,6 +38,11 @@ export default function Users() {
   const [selectedPerms, setSelectedPerms]   = useState([])
   const [rolePerms, setRolePerms]           = useState([])
   const [loadingPerms, setLoadingPerms]     = useState(false)
+
+  // Confirmation modals
+  const [submitConfirm, setSubmitConfirm] = useState(false)
+  const [statusConfirm, setStatusConfirm] = useState({ open: false, user: null })
+  const [permsConfirm, setPermsConfirm]   = useState(false)
 
   useEffect(() => {
     api.get('/roles').then(({ data }) => setRoles(data.data ?? data))
@@ -124,8 +130,7 @@ export default function Users() {
     setEditing(null)
   }
 
-  async function submit(e) {
-    e.preventDefault()
+  async function submit() {
     setError(''); setSuccess('')
     try {
       if (editing) {
@@ -146,9 +151,10 @@ export default function Users() {
     }
   }
 
-  async function toggleStatus(user) {
+  async function executeToggleStatus(user) {
     try {
       await api.patch(`/users/${user.id}/toggle-status`)
+      setSuccess(`Statut de l'acteur mis à jour.`)
       load()
     } catch (err) {
       setError(getApiError(err))
@@ -203,6 +209,8 @@ export default function Users() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  const originalPermissions   = useRef([])
+
   function openPermModal(user) {
     setPermModal({ open: true, user })
     setLoadingPerms(true)
@@ -221,11 +229,16 @@ export default function Users() {
           ? u.toutes_permissions
           : Object.values(u.toutes_permissions ?? {})
         setSelectedPerms(toutesPerms)
+        originalPermissions.current = [...toutesPerms]
       })
       .finally(() => setLoadingPerms(false))
   }
 
-  async function savePermissions() {
+  async function executeSavePermissions() {
+    // Vérifier si les permissions ont été modifiées
+    const hasChanged = selectedPerms.length !== originalPermissions.current.length ||
+      selectedPerms.some(p => !originalPermissions.current.includes(p))
+
     const directesLibelles = selectedPerms.filter(p => !rolePerms.includes(p))
     const deniedLibelles = rolePerms.filter(p => !selectedPerms.includes(p))
 
@@ -242,7 +255,9 @@ export default function Users() {
         permission_ids: ids,
         denied_ids: deniedIds,
       })
-      setSuccess('Permissions mises à jour.')
+      if (hasChanged) {
+        setSuccess('Permissions mises à jour.')
+      }
       setPermModal({ open: false, user: null })
       load()
     } catch (err) {
@@ -310,7 +325,7 @@ export default function Users() {
             <Shield size={13} /> Permissions
           </button>
           <button
-            onClick={() => toggleStatus(row)}
+            onClick={() => setStatusConfirm({ open: true, user: row })}
             className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold ring-1 transition ${
               row.is_active
                 ? 'bg-rose-50 text-rose-700 ring-rose-200 hover:bg-rose-100'
@@ -369,7 +384,7 @@ export default function Users() {
 
       {/* Formulaire */}
       <form
-        onSubmit={submit}
+        onSubmit={(e) => { e.preventDefault(); setSubmitConfirm(true) }}
         className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
       >
         <h3 className="mb-3 text-sm font-bold text-slate-700">
@@ -472,7 +487,6 @@ export default function Users() {
             ) : (
               <div className="mt-4 max-h-72 overflow-y-auto space-y-1">
                 {allPermissions.map((perm) => {
-                  const isFromRole = rolePerms.includes(perm.libelle)
                   const isChecked  = selectedPerms.includes(perm.libelle)
 
                   return (
@@ -503,7 +517,7 @@ export default function Users() {
                 Annuler
               </button>
               <button
-                onClick={savePermissions}
+                onClick={() => setPermsConfirm(true)}
                 className="rounded-lg bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
               >
                 Enregistrer
@@ -512,6 +526,44 @@ export default function Users() {
           </div>
         </div>
       )}
+
+      {/* Modal confirmation création/modification */}
+      <ConfirmModal
+        open={submitConfirm}
+        title={editing ? 'Confirmer la modification ?' : 'Confirmer la création ?'}
+        message={editing ? 'Les modifications seront enregistrées définitivement.' : 'Êtes-vous sûr de vouloir créer cet élément ?'}
+        confirmText={editing ? 'Enregistrer' : 'Confirmer'}
+        onConfirm={async () => { setSubmitConfirm(false); await submit() }}
+        onCancel={() => setSubmitConfirm(false)}
+      />
+
+      {/* Modal confirmation changement statut */}
+      <ConfirmModal
+        open={statusConfirm.open}
+        title={statusConfirm.user?.is_active ? 'Désactiver cet acteur ?' : 'Activer cet acteur ?'}
+        message={statusConfirm.user?.is_active ? 'Êtes-vous sûr de vouloir désactiver ce compte ?' : 'Êtes-vous sûr de vouloir activer ce compte ?'}
+        confirmText={statusConfirm.user?.is_active ? 'Désactiver' : 'Activer'}
+        danger={statusConfirm.user?.is_active}
+        onConfirm={async () => {
+          const userObj = statusConfirm.user
+          setStatusConfirm({ open: false, user: null })
+          await executeToggleStatus(userObj)
+        }}
+        onCancel={() => setStatusConfirm({ open: false, user: null })}
+      />
+
+      {/* Modal confirmation permissions directes */}
+      <ConfirmModal
+        open={permsConfirm}
+        title="Confirmer la modification ?"
+        message="Les modifications des permissions seront enregistrées définitivement."
+        confirmText="Enregistrer"
+        onConfirm={async () => {
+          setPermsConfirm(false)
+          await executeSavePermissions()
+        }}
+        onCancel={() => setPermsConfirm(false)}
+      />
     </>
   )
 }

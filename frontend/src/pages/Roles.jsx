@@ -20,6 +20,7 @@ export default function Roles() {
   const originalForm = useRef(null)
   const [search, setSearch]                 = useState('')
   const [confirmModal, setConfirmModal]     = useState({ open: false, id: null })
+  const [submitConfirm, setSubmitConfirm] = useState(false)
 
   useEffect(() => {
     api.get('/permissions').then(({ data }) =>
@@ -45,8 +46,7 @@ export default function Roles() {
     }))
   }
 
-  async function submit(e) {
-    e.preventDefault()
+  async function submit() {
     setError(''); setSuccess('')
     try {
       if (editing) {
@@ -170,7 +170,7 @@ export default function Roles() {
       </div>
 
       <form
-        onSubmit={submit}
+        onSubmit={(e) => { e.preventDefault(); setSubmitConfirm(true) }}
         className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
       >
         <h3 className="mb-3 text-sm font-bold text-slate-700">
@@ -236,11 +236,21 @@ export default function Roles() {
         title="Confirmer la suppression"
         message="Cette action est irréversible."
         danger={true}
+        confirmText="Supprimer"
         onConfirm={async () => {
           await destroy(confirmModal.id)
           setConfirmModal({ open: false, id: null })
         }}
         onCancel={() => setConfirmModal({ open: false, id: null })}
+      />
+
+      <ConfirmModal
+        open={submitConfirm}
+        title={editing ? 'Confirmer la modification ?' : 'Confirmer la création ?'}
+        message={editing ? 'Les modifications seront enregistrées définitivement.' : 'Êtes-vous sûr de vouloir créer cet élément ?'}
+        confirmText={editing ? 'Enregistrer' : 'Confirmer'}
+        onConfirm={async () => { setSubmitConfirm(false); await submit() }}
+        onCancel={() => setSubmitConfirm(false)}
       />
     </>
   )
