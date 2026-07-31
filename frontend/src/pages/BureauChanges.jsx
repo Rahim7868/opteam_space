@@ -1,4 +1,4 @@
-import { Check, Edit, Plus, Search, Upload, X } from 'lucide-react'
+import { Check, Edit, FileDown, FileSpreadsheet, Plus, Search, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
@@ -21,6 +21,12 @@ export default function BureauChanges() {
   const canModify   = hasPermission('modifier_bureau_change')
   const canValidate = hasPermission('valider_bureau_change')
   const canReject   = hasPermission('rejeter_bureau_change')
+  const canViewAll  = hasPermission('consulter_bureau_change')
+  
+  // 🔥 NOUVELLES PERMISSIONS
+  const canExportPdf = hasPermission('exporter_bureau_pdf')
+  const canExportExcel = hasPermission('exporter_bureau_excel')
+  const canImport = hasPermission('importer_bureau')
 
   const [rows, setRows]       = useState([])
   const [meta, setMeta]       = useState(null)
@@ -42,6 +48,56 @@ export default function BureauChanges() {
   const [submitConfirm, setSubmitConfirm]       = useState(false)
   const [validateConfirm, setValidateConfirm]   = useState({ open: false, id: null })
   const [rejectConfirm, setRejectConfirm]       = useState({ open: false, id: null })
+
+  // Export PDF
+  function exportPdf() {
+    if (!canExportPdf) return
+    const params = new URLSearchParams()
+    if (filters.search) params.append('search', filters.search)
+    if (filters.statut) params.append('statut', filters.statut)
+    
+    api.get(`/export/bureau-changes-pdf?${params.toString()}`, {
+      responseType: 'blob'
+    })
+    .then((response) => {
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `bureaux_change_${new Date().toISOString().slice(0, 10)}.pdf`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    })
+    .catch((err) => {
+      setError(getApiError(err))
+    })
+  }
+
+  // Export Excel
+  function exportExcel() {
+    if (!canExportExcel) return
+    const params = new URLSearchParams()
+    if (filters.search) params.append('search', filters.search)
+    if (filters.statut) params.append('statut', filters.statut)
+    
+    api.get(`/export/bureau-changes-excel?${params.toString()}`, {
+      responseType: 'blob'
+    })
+    .then((response) => {
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `bureaux_change_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    })
+    .catch((err) => {
+      setError(getApiError(err))
+    })
+  }
 
   function load() {
     setLoading(true)
@@ -184,16 +240,47 @@ export default function BureauChanges() {
     <>
       <PageHeader
         title="Bureaux de change"
-        subtitle="Gestion et validation des bureaux de change."
+        subtitle={
+          canViewAll
+            ? "Consultation de tous les bureaux de change du système."
+            : "Consultation de vos bureaux de change uniquement."
+        }
         action={
-          canCreate && (
+          <div className="flex gap-2">
+            <button
+              onClick={exportPdf}
+              disabled={!canExportPdf}
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all ${
+                canExportPdf
+                  ? 'bg-red-500 hover:bg-red-600 hover:shadow-md cursor-pointer'
+                  : 'bg-gray-400 cursor-not-allowed opacity-50'
+              }`}
+            >
+              <FileDown size={16} /> PDF
+            </button>
+            <button
+              onClick={exportExcel}
+              disabled={!canExportExcel}
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all ${
+                canExportExcel
+                  ? 'bg-green-600 hover:bg-green-700 hover:shadow-md cursor-pointer'
+                  : 'bg-gray-400 cursor-not-allowed opacity-50'
+              }`}
+            >
+              <FileSpreadsheet size={16} /> Excel
+            </button>
             <button
               onClick={() => { setImportModal(true); setImportResult(null); setImportFile(null) }}
-              className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700"
+              disabled={!canImport}
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all ${
+                canImport
+                  ? 'bg-teal-600 hover:bg-teal-700 hover:shadow-md cursor-pointer'
+                  : 'bg-gray-400 cursor-not-allowed opacity-50'
+              }`}
             >
               <Upload size={16} /> Importer Excel
             </button>
-          )
+          </div>
         }
       />
 

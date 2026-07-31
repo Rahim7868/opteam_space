@@ -18,6 +18,11 @@ class FixingController extends Controller
             ->with('createur', 'validateur')
             ->latest();
 
+        // 🔥 Utilisation de hasPermission()
+        if (!auth()->user()->hasPermission('consulter_fixing')) {
+            $query->where('created_by', auth()->id());
+        }
+
         if (request('statut')) {
             $query->where('statut', request('statut'));
         }

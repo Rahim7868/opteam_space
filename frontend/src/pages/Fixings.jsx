@@ -1,4 +1,4 @@
-import { Check, Edit, Plus, Search, X } from 'lucide-react'
+import { Check, Edit, FileDown, FileSpreadsheet, Plus, Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
@@ -28,13 +28,17 @@ function formatAmount(value) {
 }
 
 export default function Fixings() {
-  //  Ajout de user
   const { hasPermission, user } = useAuth()
 
   const canCreate   = hasPermission('creer_fixing')
   const canModify   = hasPermission('modifier_fixing')
   const canValidate = hasPermission('valider_fixing')
   const canReject   = hasPermission('rejeter_fixing')
+  const canViewAll  = hasPermission('consulter_fixing')
+  
+  // 🔥 NOUVELLES PERMISSIONS
+  const canExportPdf = hasPermission('exporter_fixing_pdf')
+  const canExportExcel = hasPermission('exporter_fixing_excel')
 
   const [rows, setRows]           = useState([])
   const [chartRows, setChartRows] = useState([])
@@ -53,6 +57,56 @@ export default function Fixings() {
   const [validateConfirm, setValidateConfirm] = useState({ open: false, id: null })
   const [rejectConfirm, setRejectConfirm]     = useState({ open: false, id: null })
   const [duplicateModal, setDuplicateModal]    = useState(false)
+
+  // Export PDF
+  function exportPdf() {
+    if (!canExportPdf) return
+    const params = new URLSearchParams()
+    if (filters.statut) params.append('statut', filters.statut)
+    if (filters.devise) params.append('devise', filters.devise)
+    
+    api.get(`/export/fixings-pdf?${params.toString()}`, {
+      responseType: 'blob'
+    })
+    .then((response) => {
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `fixings_${new Date().toISOString().slice(0, 10)}.pdf`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    })
+    .catch((err) => {
+      setError(getApiError(err))
+    })
+  }
+
+  // Export Excel
+  function exportExcel() {
+    if (!canExportExcel) return
+    const params = new URLSearchParams()
+    if (filters.statut) params.append('statut', filters.statut)
+    if (filters.devise) params.append('devise', filters.devise)
+    
+    api.get(`/export/fixings-excel?${params.toString()}`, {
+      responseType: 'blob'
+    })
+    .then((response) => {
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `fixings_${new Date().toISOString().slice(0, 10)}.xlsx`)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    })
+    .catch((err) => {
+      setError(getApiError(err))
+    })
+  }
 
   function load() {
     setLoading(true)
@@ -94,7 +148,6 @@ export default function Fixings() {
         setSuccess('Fixing modifié avec succès.')
       } else {
         const { data } = await api.post('/fixings', payload)
-        // Vérifier si le backend a renvoyé une erreur de doublon (409)
         if (data?.error_code === 'DUPLICATE_FIXING') {
           setDuplicateModal(true)
           return
@@ -105,7 +158,6 @@ export default function Fixings() {
       load()
       loadChartData()
     } catch (err) {
-      // Gérer le cas 409 Conflict (doublon)
       if (err.response?.status === 409 && err.response?.data?.error_code === 'DUPLICATE_FIXING') {
         setDuplicateModal(true)
         return
@@ -177,7 +229,6 @@ export default function Fixings() {
       key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          {/*Modifier uniquement ses propres fixings */}
           {canModify && row.statut === 'en_attente' && row.createur?.id === user?.id && (
             <button
               onClick={() => {
@@ -226,7 +277,37 @@ export default function Fixings() {
     <>
       <PageHeader
         title="Fixings"
-        subtitle="Création et suivi des fixings de change."
+        subtitle={
+          canViewAll
+            ? "Consultation de tous les fixings du système."
+            : "Consultation de vos fixings uniquement."
+        }
+        action={
+          <div className="flex gap-2">
+            <button
+              onClick={exportPdf}
+              disabled={!canExportPdf}
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all ${
+                canExportPdf
+                  ? 'bg-red-500 hover:bg-red-600 hover:shadow-md cursor-pointer'
+                  : 'bg-gray-400 cursor-not-allowed opacity-50'
+              }`}
+            >
+              <FileDown size={16} /> PDF
+            </button>
+            <button
+              onClick={exportExcel}
+              disabled={!canExportExcel}
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all ${
+                canExportExcel
+                  ? 'bg-green-600 hover:bg-green-700 hover:shadow-md cursor-pointer'
+                  : 'bg-gray-400 cursor-not-allowed opacity-50'
+              }`}
+            >
+              <FileSpreadsheet size={16} /> Excel
+            </button>
+          </div>
+        }
       />
 
       <ErrorAlert message={error} onDismiss={() => setError('')} />

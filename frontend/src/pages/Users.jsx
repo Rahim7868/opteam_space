@@ -391,50 +391,108 @@ export default function Users() {
           {editing ? 'Modifier un acteur' : 'Ajouter un acteur'}
         </h3>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          <input className="field" placeholder="Nom complet *"
-            value={form.nom}
-            onChange={(e) => setForm({ ...form, nom: e.target.value })}
-            required />
-          <input className="field" type="email" placeholder="Email *"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            required />
-          <input className="field" placeholder="Adresse (optionnel)"
-            value={form.adresse}
-            onChange={(e) => setForm({ ...form, adresse: e.target.value })} />
-          <input className="field" placeholder="Fonction (ex: Directeur, Caissier...)"
-            value={form.fonction}
-            onChange={(e) => setForm({ ...form, fonction: e.target.value })} />
-          <select className="field" value={form.role_id}
-            onChange={(e) => setForm({ ...form, role_id: e.target.value })}
-            required>
-            <option value="">Sélectionner un rôle *</option>
-            {roles.map((r) => <option key={r.id} value={r.id}>{r.libelle}</option>)}
-          </select>
-          <select className="field" value={form.agence_id}
-            onChange={(e) => handleAgenceChange(e.target.value)}>
-            <option value="">Sélectionner une agence</option>
-            {agences.map((a) => <option key={a.id} value={a.id}>{a.libelle}</option>)}
-          </select>
-          <select className="field" value={form.direction_id}
-            onChange={(e) => handleDirectionChange(e.target.value)}
-            disabled={!form.agence_id}>
-            <option value="">Sélectionner une direction</option>
-            {directions.map((d) => <option key={d.id} value={d.id}>{d.libelle}</option>)}
-          </select>
-          <select className="field" value={form.departement_id}
-            onChange={(e) => handleDepartementChange(e.target.value)}
-            disabled={!form.direction_id}>
-            <option value="">Sélectionner un département</option>
-            {departements.map((d) => <option key={d.id} value={d.id}>{d.libelle}</option>)}
-          </select>
-          <select className="field" value={form.service_id}
-            onChange={(e) => setForm({ ...form, service_id: e.target.value })}
-            disabled={!form.departement_id}
-            required>
-            <option value="">Sélectionner un service *</option>
-            {services.map((s) => <option key={s.id} value={s.id}>{s.libelle}</option>)}
-          </select>
+          <div>
+            <label className="block text-sm font-medium text-slate-700">
+              Nom complet <span className="text-slate-700">*</span>
+            </label>
+            <input className="field mt-1" placeholder="Nom complet"
+              value={form.nom}
+              onChange={(e) => setForm({ ...form, nom: e.target.value })}
+              required />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700">
+              Email <span className="text-slate-700">*</span>
+            </label>
+            <input className="field mt-1" type="email" placeholder="Email"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              required />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700">
+              Adresse <span className="text-slate-700">*</span>
+            </label>
+            <input className="field mt-1" placeholder="Adresse"
+              value={form.adresse}
+              onChange={(e) => setForm({ ...form, adresse: e.target.value })}
+              required />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700">
+              Fonction <span className="text-slate-700">*</span>
+            </label>
+            <input className="field mt-1" placeholder="Fonction (ex: Directeur, Caissier...)"
+              value={form.fonction}
+              onChange={(e) => setForm({ ...form, fonction: e.target.value })}
+              required />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700">
+              Rôle <span className="text-slate-700">*</span>
+            </label>
+            <select className="field mt-1" value={form.role_id}
+              onChange={(e) => setForm({ ...form, role_id: e.target.value })}
+              required>
+              <option value="">Sélectionner un rôle</option>
+              {roles.map((r) => <option key={r.id} value={r.id}>{r.libelle}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700">
+              Agence <span className="text-slate-700">*</span>
+            </label>
+            <select className="field mt-1" value={form.agence_id}
+              onChange={(e) => handleAgenceChange(e.target.value)}
+              required>
+              <option value="">Sélectionner une agence</option>
+              {agences.map((a) => <option key={a.id} value={a.id}>{a.libelle}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700">
+              Direction <span className="text-slate-700">*</span>
+            </label>
+            <select className="field mt-1" value={form.direction_id}
+              onChange={(e) => handleDirectionChange(e.target.value)}
+              disabled={!form.agence_id}
+              required>
+              <option value="">Sélectionner une direction</option>
+              {directions.map((d) => <option key={d.id} value={d.id}>{d.libelle}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700">
+              Département <span className="text-slate-700">*</span>
+            </label>
+            <select className="field mt-1" value={form.departement_id}
+              onChange={(e) => handleDepartementChange(e.target.value)}
+              disabled={!form.direction_id}
+              required>
+              <option value="">Sélectionner un département</option>
+              {departements.map((d) => <option key={d.id} value={d.id}>{d.libelle}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700">
+              Service <span className="text-slate-700">*</span>
+            </label>
+            <select className="field mt-1" value={form.service_id}
+              onChange={(e) => setForm({ ...form, service_id: e.target.value })}
+              disabled={!form.departement_id}
+              required>
+              <option value="">Sélectionner un service</option>
+              {services.map((s) => <option key={s.id} value={s.id}>{s.libelle}</option>)}
+            </select>
+          </div>
         </div>
 
         {!editing && (

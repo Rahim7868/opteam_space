@@ -19,6 +19,11 @@ class BureauChangeController extends Controller
             ->with('createur', 'validateur')
             ->latest();
 
+        // 🔥 Utilisation de hasPermission()
+        if (!auth()->user()->hasPermission('consulter_bureau_change')) {
+            $query->where('created_by', auth()->id());
+        }
+
         if (request('search')) {
             $search = request('search');
             $query->where(fn($q) => $q
@@ -86,7 +91,6 @@ class BureauChangeController extends Controller
         return new BureauChangeResource($bureauChange->load('createur'));
     }
 
-    // ✅ Nouvelle méthode import
     public function import(): JsonResponse
     {
         request()->validate([

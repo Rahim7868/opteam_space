@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ExportController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
@@ -35,6 +36,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::post('/auth/change-password', [AuthController::class, 'changePassword']);
     Route::put('/profile/password', [ProfileController::class, 'updatePassword']);
+    Route::get('/export/fixings-pdf', [ExportController::class, 'exportFixingsPdf']);
+    Route::get('/export/fixings-excel', [ExportController::class, 'exportFixingsExcel']);
+    // ── Export Bureaux de change ────────────────────────────────
+    Route::get('/export/bureau-changes-pdf', [ExportController::class, 'exportBureauChangesPdf']);
+    Route::get('/export/bureau-changes-excel', [ExportController::class, 'exportBureauChangesExcel']);
 
     // ── Dashboard ──────────────────────────────────────────────
     Route::get('/dashboard', DashboardController::class);
