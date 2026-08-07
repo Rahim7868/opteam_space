@@ -14,17 +14,23 @@ class BureauChangeRequest extends FormRequest
 
     public function rules(): array
     {
-        $bureauChange = $this->route('bureauChange');
+        $bureauChange = $this->route('bureau_change') ?? $this->route('bureauChange');
 
         return [
-            'numero_ordre'       => ['nullable', 'string', 'max:50'],
+            'numero_ordre'       => [
+                'nullable',
+                'string',
+                'max:50',
+                Rule::unique('bureau_changes', 'numero_ordre')
+                    ->ignore($bureauChange?->id ?? $bureauChange),
+            ],
             'designation'        => ['required', 'string', 'max:255'],
             'numero_agrement'    => [
                 'required',
                 'string',
                 'max:100',
                 Rule::unique('bureau_changes', 'numero_agrement')
-                    ->ignore($bureauChange?->id),
+                    ->ignore($bureauChange?->id ?? $bureauChange),
             ],
             'representant_legal' => ['required', 'string', 'max:255'],
             'contact'            => ['required', 'string', 'regex:/^[0-9]{9}$/'],

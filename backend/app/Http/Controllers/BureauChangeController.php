@@ -16,10 +16,9 @@ class BureauChangeController extends Controller
     public function index(): AnonymousResourceCollection
     {
         $query = BureauChange::query()
-            ->with('createur', 'validateur')
+            ->with('createur', 'validateur', 'modificationProposeePar', 'modificationApprouveePar')
             ->latest();
 
-        // 🔥 Utilisation de hasPermission()
         if (!auth()->user()->hasPermission('consulter_bureau_change')) {
             $query->where('created_by', auth()->id());
         }
@@ -80,15 +79,74 @@ class BureauChangeController extends Controller
             ], 403);
         }
 
-        $bureauChange->update($request->validated());
+        $data = $request->validated();
+
+        //  Si un fichier est uploadé, ajouter son URL dans les données proposées
+        if ($request->hasFile('piece_jointe')) {
+            $filePath = $request->file('piece_jointe')->store('bureau_changes', 'public');
+            $data['piece_jointe'] = $filePath;
+            $data['piece_jointe_url'] = Storage::disk('public')->url($filePath);
+        }
+
+        // Modification proposée : statut_modification = 'en_attente_validation_modification'
+        $bureauChange->update([
+            'statut_modification' => 'en_attente_validation_modification',
+            'modification_proposee' => $data,
+            'modification_proposee_par' => auth()->id(),
+            'modification_approuvee_par' => null,
+            'modification_approuvee_at' => null,
+        ]);
 
         AuditLogger::forModel(
-            'bureau_updated',
+            'bureau_modification_proposee',
             $bureauChange,
-            'Modification bureau de change : ' . $bureauChange->designation
+            'Proposition de modification du bureau de change ' . $bureauChange->designation . ' par ' . auth()->user()->nom
         );
 
-        return new BureauChangeResource($bureauChange->load('createur'));
+        return response()->json([
+            'message' => 'Modifications proposées. En attente de validation.',
+            'bureauChange' => new BureauChangeResource($bureauChange->load('createur'))
+        ]);
+    }
+
+    public function approuverModification(BureauChange $bureauChange): JsonResponse
+    {
+        if (!auth()->user()->hasPermission('approuver_modification_bureau')) {
+            return response()->json([
+                'message' => 'Vous n\'avez pas la permission d\'approuver les modifications.'
+            ], 403);
+        }
+
+        if (!$bureauChange->modification_proposee || $bureauChange->statut_modification !== 'en_attente_validation_modification') {
+            return response()->json([
+                'message' => 'Aucune modification en attente pour cet élément.'
+            ], 422);
+        }
+
+        //  Approbation : appliquer les modifications, réinitialiser le statut_modification
+        //  Si l'élément était rejeté, il repasse en 'en_attente'
+        $newStatut = $bureauChange->statut === 'rejete' ? 'en_attente' : $bureauChange->statut;
+
+        $bureauChange->update([
+            ...$bureauChange->modification_proposee,
+            'statut' => $newStatut,
+            'statut_modification' => null,
+            'modification_proposee' => null,
+            'modification_proposee_par' => null,
+            'modification_approuvee_par' => auth()->id(),
+            'modification_approuvee_at' => now(),
+        ]);
+
+        AuditLogger::forModel(
+            'bureau_modification_approuvee',
+            $bureauChange,
+            'Approbation de la modification du bureau de change ' . $bureauChange->designation . ' par ' . auth()->user()->nom
+        );
+
+        return response()->json([
+            'message' => 'Modifications appliquées définitivement.',
+            'bureauChange' => new BureauChangeResource($bureauChange->load('createur', 'validateur'))
+        ]);
     }
 
     public function import(): JsonResponse
@@ -144,7 +202,10 @@ class BureauChangeController extends Controller
     public function rejeter(BureauChange $bureauChange): JsonResponse
     {
         request()->validate([
-            'commentaire' => ['nullable', 'string'],
+            'commentaire' => ['required', 'string', 'min:3'],
+        ], [
+            'commentaire.required' => 'Le motif du rejet est obligatoire.',
+            'commentaire.min' => 'Le motif doit contenir au moins 3 caractères.',
         ]);
 
         if (!$bureauChange->isEditable()) {
@@ -168,6 +229,41 @@ class BureauChangeController extends Controller
             'bureauChange' => new BureauChangeResource(
                 $bureauChange->load('createur', 'validateur')
             ),
+        ]);
+    }
+
+    public function rejeterModification(BureauChange $bureauChange): JsonResponse
+    {
+        if (!auth()->user()->hasPermission('approuver_modification_bureau')) {
+            return response()->json([
+                'message' => 'Vous n\'avez pas la permission de gérer les modifications.'
+            ], 403);
+        }
+
+        if (!$bureauChange->modification_proposee || $bureauChange->statut_modification !== 'en_attente_validation_modification') {
+            return response()->json([
+                'message' => 'Aucune modification en attente pour cet élément.'
+            ], 422);
+        }
+
+        //  Rejet de la modification : réinitialiser le statut_modification, garder le statut inchangé
+        $bureauChange->update([
+            'statut_modification' => null,
+            'modification_proposee' => null,
+            'modification_proposee_par' => null,
+            'modification_approuvee_par' => auth()->id(),
+            'modification_approuvee_at' => now(),
+        ]);
+
+        AuditLogger::forModel(
+            'bureau_modification_rejetee',
+            $bureauChange,
+            'Rejet de la modification du bureau de change ' . $bureauChange->designation . ' par ' . auth()->user()->nom
+        );
+
+        return response()->json([
+            'message' => 'Modifications rejetées. Les données restent inchangées.',
+            'bureauChange' => new BureauChangeResource($bureauChange->load('createur', 'validateur'))
         ]);
     }
 }

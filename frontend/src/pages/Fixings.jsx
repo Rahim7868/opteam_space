@@ -1,4 +1,4 @@
-import { Check, Edit, FileDown, FileSpreadsheet, Plus, Search, X } from 'lucide-react'
+import { Check, Edit, Eye, FileDown, FileSpreadsheet, MessageSquare, Plus, Search, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
@@ -9,6 +9,8 @@ import SuccessAlert from '../components/SuccessAlert'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
 import { useAuth } from '../context/AuthContext'
+import ModificationReviewModal, { FIXING_FIELD_LABELS } from '../components/ModificationReviewModal'
+import { RejectReasonModal, ViewReasonModal } from '../components/RejectReasonModal'
 
 const emptyForm = {
   date_fixing: new Date().toISOString().slice(0, 10),
@@ -35,10 +37,11 @@ export default function Fixings() {
   const canValidate = hasPermission('valider_fixing')
   const canReject   = hasPermission('rejeter_fixing')
   const canViewAll  = hasPermission('consulter_fixing')
-  
-  // 🔥 NOUVELLES PERMISSIONS
+
   const canExportPdf = hasPermission('exporter_fixing_pdf')
   const canExportExcel = hasPermission('exporter_fixing_excel')
+
+  const canApprouverModification = hasPermission('approuver_modification_fixing')
 
   const [rows, setRows]           = useState([])
   const [chartRows, setChartRows] = useState([])
@@ -52,19 +55,20 @@ export default function Fixings() {
   const [success, setSuccess]     = useState('')
   const originalForm = useRef(null)
 
-  // Confirmation modals
   const [submitConfirm, setSubmitConfirm]     = useState(false)
   const [validateConfirm, setValidateConfirm] = useState({ open: false, id: null })
   const [rejectConfirm, setRejectConfirm]     = useState({ open: false, id: null })
   const [duplicateModal, setDuplicateModal]    = useState(false)
+  const [reviewModal, setReviewModal]           = useState({ open: false, item: null })
+  const [viewReasonModal, setViewReasonModal] = useState({ open: false, reason: '' })
 
-  // Export PDF
+  // ─── Exports ────────────────────────────────────────────────
   function exportPdf() {
     if (!canExportPdf) return
     const params = new URLSearchParams()
     if (filters.statut) params.append('statut', filters.statut)
     if (filters.devise) params.append('devise', filters.devise)
-    
+
     api.get(`/export/fixings-pdf?${params.toString()}`, {
       responseType: 'blob'
     })
@@ -83,13 +87,12 @@ export default function Fixings() {
     })
   }
 
-  // Export Excel
   function exportExcel() {
     if (!canExportExcel) return
     const params = new URLSearchParams()
     if (filters.statut) params.append('statut', filters.statut)
     if (filters.devise) params.append('devise', filters.devise)
-    
+
     api.get(`/export/fixings-excel?${params.toString()}`, {
       responseType: 'blob'
     })
@@ -108,6 +111,7 @@ export default function Fixings() {
     })
   }
 
+  // ─── API ─────────────────────────────────────────────────────
   function load() {
     setLoading(true)
     const params = Object.fromEntries(
@@ -128,6 +132,7 @@ export default function Fixings() {
   useEffect(load, [filters])
   useEffect(loadChartData, [])
 
+  // ─── CRUD ────────────────────────────────────────────────────
   async function submit() {
     setError('')
     setSuccess('')
@@ -143,9 +148,9 @@ export default function Fixings() {
     try {
       if (editingId) {
         payload.append('_method', 'PUT')
-        await api.post(`/fixings/${editingId}`, payload)
+        const { data } = await api.post(`/fixings/${editingId}`, payload)
         setEditingId(null)
-        setSuccess('Fixing modifié avec succès.')
+        setSuccess(data?.message || 'Modifications proposées. En attente de validation.')
       } else {
         const { data } = await api.post('/fixings', payload)
         if (data?.error_code === 'DUPLICATE_FIXING') {
@@ -177,9 +182,9 @@ export default function Fixings() {
     }
   }
 
-  async function rejeter(id) {
+  async function rejeter(id, commentaire = '') {
     try {
-      await api.post(`/fixings/${id}/rejeter`, {})
+      await api.post(`/fixings/${id}/rejeter`, { commentaire })
       setSuccess('Fixing rejeté.')
       load()
       loadChartData()
@@ -188,6 +193,29 @@ export default function Fixings() {
     }
   }
 
+  async function approuverModification(id) {
+    try {
+      await api.post(`/fixings/${id}/approuver-modification`)
+      setSuccess('Modifications appliquées définitivement.')
+      load()
+      loadChartData()
+    } catch (err) {
+      setError(getApiError(err))
+    }
+  }
+
+  async function rejeterModification(id) {
+    try {
+      await api.post(`/fixings/${id}/rejeter-modification`)
+      setSuccess('Modifications rejetées. Les données restent inchangées.')
+      load()
+      loadChartData()
+    } catch (err) {
+      setError(getApiError(err))
+    }
+  }
+
+  // ─── Colonnes ────────────────────────────────────────────────
   const columns = [
     { key: 'date_fixing', label: 'Date' },
     { key: 'devise',      label: 'Devise' },
@@ -222,29 +250,62 @@ export default function Fixings() {
       render: (row) => row.createur?.nom ?? '—',
     },
     {
-      key: 'statut', label: 'Statut',
-      render: (row) => <StatusBadge status={row.statut} />,
+      key: 'statut',
+      label: 'Statut',
+      render: (row) => {
+        // ✅ Nom en italique UNIQUEMENT si statut = 'valide' ou 'rejete' ET validateur ≠ créateur
+        let actorName = null
+        const isModificationPending = row.statut_modification === 'en_attente_validation_modification'
+
+        if (!isModificationPending && (row.statut === 'valide' || row.statut === 'rejete')) {
+          if (row.validateur?.id && row.validateur?.id !== row.createur?.id) {
+            actorName = row.validateur?.nom
+          }
+        }
+
+        // ✅ Le motif de rejet ne s'affiche QUE si le statut est 'rejete' et qu'il n'y a PAS de modification en attente
+        const showRejectReason = row.statut === 'rejete' && row.commentaire && !isModificationPending
+
+        return (
+          <div className="flex flex-col items-start gap-0.5">
+            {isModificationPending ? (
+              <StatusBadge status="en_attente_validation_modification" />
+            ) : (
+              <StatusBadge status={row.statut} />
+            )}
+            {actorName && (
+              <span className="text-[11px] italic text-slate-500 font-normal">
+                {actorName}
+              </span>
+            )}
+            {showRejectReason && (
+              <button
+                onClick={() => setViewReasonModal({ open: true, reason: row.commentaire })}
+                className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:text-rose-800 hover:underline"
+              >
+                <MessageSquare size={12} /> Voir le motif
+              </button>
+            )}
+          </div>
+        )
+      },
     },
     {
       key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          {canModify && row.statut === 'en_attente' && row.createur?.id === user?.id && (
+          {canModify && (row.statut === 'en_attente' || row.statut === 'rejete') && row.createur?.id === user?.id && (
             <button
               onClick={() => {
                 setEditingId(row.id)
-                setForm({
+                const formData = {
                   date_fixing:  row.date_fixing,
                   devise:       row.devise,
-                  cours:        row.cours,
-                  piece_jointe: null,
-                })
-                originalForm.current = {
-                  date_fixing:  row.date_fixing,
-                  devise:       row.devise,
-                  cours:        row.cours,
+                  cours:        String(row.cours ?? ''),
                   piece_jointe: null,
                 }
+                setForm(formData)
+                originalForm.current = { ...formData }
                 window.scrollTo({ top: 0, behavior: 'smooth' })
               }}
               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
@@ -266,6 +327,14 @@ export default function Fixings() {
               className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100 transition"
             >
               <X size={13} /> Rejeter
+            </button>
+          )}
+          {canApprouverModification && row.statut_modification === 'en_attente_validation_modification' && (
+            <button
+              onClick={() => setReviewModal({ open: true, item: row })}
+              className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-200 hover:bg-blue-100 transition"
+            >
+              <Eye size={13} /> Voir les modifications
             </button>
           )}
         </div>
@@ -401,7 +470,7 @@ export default function Fixings() {
 
       <FixingEvolutionChart fixings={chartRows} loading={chartLoading} />
 
-      {/* Modal confirmation création/modification */}
+      {/* Modals */}
       <ConfirmModal
         open={submitConfirm}
         title={editingId ? 'Confirmer la modification ?' : 'Confirmer la création ?'}
@@ -411,7 +480,6 @@ export default function Fixings() {
         onCancel={() => setSubmitConfirm(false)}
       />
 
-      {/* Modal confirmation validation */}
       <ConfirmModal
         open={validateConfirm.open}
         title="Confirmer l'approbation ?"
@@ -425,22 +493,42 @@ export default function Fixings() {
         onCancel={() => setValidateConfirm({ open: false, id: null })}
       />
 
-      {/* Modal confirmation rejet */}
-      <ConfirmModal
+      <RejectReasonModal
         open={rejectConfirm.open}
-        title="Confirmer le refus ?"
-        message="Êtes-vous sûr de vouloir refuser ce fixing ?"
-        danger
-        confirmText="Refuser"
-        onConfirm={async () => {
+        title="Refuser ce fixing"
+        message="Êtes-vous sûr de vouloir refuser ce fixing ? Vous pouvez indiquer la raison du refus ci-dessous :"
+        onConfirm={async (reason) => {
           const id = rejectConfirm.id
           setRejectConfirm({ open: false, id: null })
-          await rejeter(id)
+          await rejeter(id, reason)
         }}
         onCancel={() => setRejectConfirm({ open: false, id: null })}
       />
 
-      {/* Modal Fixing doublon */}
+      <ViewReasonModal
+        open={viewReasonModal.open}
+        title="Motif du refus du fixing"
+        reason={viewReasonModal.reason}
+        onClose={() => setViewReasonModal({ open: false, reason: '' })}
+      />
+
+      <ModificationReviewModal
+        open={reviewModal.open}
+        item={reviewModal.item}
+        fieldLabels={FIXING_FIELD_LABELS}
+        onConfirm={async () => {
+          const id = reviewModal.item?.id
+          setReviewModal({ open: false, item: null })
+          if (id) await approuverModification(id)
+        }}
+        onReject={async () => {
+          const id = reviewModal.item?.id
+          setReviewModal({ open: false, item: null })
+          if (id) await rejeterModification(id)
+        }}
+        onClose={() => setReviewModal({ open: false, item: null })}
+      />
+
       {duplicateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
@@ -459,7 +547,6 @@ export default function Fixings() {
           </div>
         </div>
       )}
-
     </>
   )
 }

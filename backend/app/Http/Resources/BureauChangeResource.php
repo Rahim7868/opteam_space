@@ -4,11 +4,20 @@ namespace App\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\Storage;
 
 class BureauChangeResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        // 🔥 Récupérer modification_proposee (déjà casté en array dans le modèle)
+        $proposed = $this->modification_proposee;
+
+        // 🔥 Si c'est un tableau et qu'il contient un fichier, ajouter l'URL
+        if (is_array($proposed) && isset($proposed['piece_jointe']) && $proposed['piece_jointe']) {
+            $proposed['piece_jointe_url'] = Storage::disk('public')->url($proposed['piece_jointe']);
+        }
+
         return [
             'id'                 => $this->id,
             'numero_ordre'       => $this->numero_ordre,
@@ -16,23 +25,28 @@ class BureauChangeResource extends JsonResource
             'numero_agrement'    => $this->numero_agrement,
             'representant_legal' => $this->representant_legal,
             'contact'            => $this->contact,
-            'adresse'            => $this->adresse,      // ✏️ faute corrigée
-            'statut'             => $this->statut,        // ✏️ status → statut
-            'commentaire'        => $this->commentaire,   // motif de rejet
+            'adresse'            => $this->adresse,
+            'statut'             => $this->statut,
+            'commentaire'        => $this->commentaire,
 
-            // Qui a créé
+            'statut_modification' => $this->statut_modification,
+            'modification_proposee' => $proposed,
+            'modification_proposee_par' => $this->modification_proposee_par,
+            'modification_proposee_par_nom' => $this->whenLoaded('modificationProposeePar', fn() => $this->modificationProposeePar?->nom),
+            'modification_approuvee_par' => $this->modification_approuvee_par,
+            'modification_approuvee_par_nom' => $this->whenLoaded('modificationApprouveePar', fn() => $this->modificationApprouveePar?->nom),
+            'modification_approuvee_at' => $this->modification_approuvee_at,
+
             'createur' => $this->whenLoaded('createur', fn() => [
                 'id'  => $this->createur->id,
                 'nom' => $this->createur->nom,
             ]),
 
-            // Qui a validé/rejeté
             'validateur' => $this->whenLoaded('validateur', fn() => [
                 'id'  => $this->validateur->id,
                 'nom' => $this->validateur->nom,
             ]),
 
-            // Indique si encore modifiable
             'is_editable' => $this->isEditable(),
 
             'created_at' => $this->created_at?->toISOString(),

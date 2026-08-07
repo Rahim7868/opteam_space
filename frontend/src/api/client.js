@@ -43,7 +43,7 @@ export function getApiError(error) {
 
   const status = error.response?.status
 
-  // ✅ Trop de tentatives
+  //  Trop de tentatives
   if (status === 429) {
     const retryAfter = error.response?.headers?.['retry-after']
     if (retryAfter) {
@@ -52,28 +52,28 @@ export function getApiError(error) {
     return 'Trop de tentatives de connexion. Veuillez patienter 1 minute.'
   }
 
-  // ✅ Accès refusé
+  // Accès refusé
   if (status === 403) {
     return error.response?.data?.message
       ?? "Vous n'avez pas la permission d'effectuer cette action."
   }
 
-  // ✅ Non trouvé
+  // Non trouvé
   if (status === 404) {
     return 'La ressource demandée est introuvable.'
   }
 
-  // ✅ Erreur serveur
+  // Erreur serveur
   if (status === 500) {
     return 'Une erreur serveur est survenue. Veuillez réessayer.'
   }
 
-  // ✅ Message de validation Laravel
+  // Message de validation Laravel
   if (error.response?.data?.message) {
     return error.response.data.message
   }
 
-  // ✅ Erreurs de validation multiples
+  // Erreurs de validation multiples
   const errors = error.response?.data?.errors
   if (errors) {
     return Object.values(errors).flat().join(' ')

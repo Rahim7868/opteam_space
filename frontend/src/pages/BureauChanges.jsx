@@ -1,4 +1,4 @@
-import { Check, Edit, FileDown, FileSpreadsheet, Plus, Search, Upload, X } from 'lucide-react'
+import { Check, Edit, Eye, FileDown, FileSpreadsheet, MessageSquare, Plus, Search, Upload, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
@@ -8,6 +8,8 @@ import SuccessAlert from '../components/SuccessAlert'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
 import { useAuth } from '../context/AuthContext'
+import ModificationReviewModal, { BUREAU_FIELD_LABELS } from '../components/ModificationReviewModal'
+import { RejectReasonModal, ViewReasonModal } from '../components/RejectReasonModal'
 
 const emptyForm = {
   numero_ordre: '', designation: '', numero_agrement: '',
@@ -22,11 +24,12 @@ export default function BureauChanges() {
   const canValidate = hasPermission('valider_bureau_change')
   const canReject   = hasPermission('rejeter_bureau_change')
   const canViewAll  = hasPermission('consulter_bureau_change')
-  
-  // 🔥 NOUVELLES PERMISSIONS
+
   const canExportPdf = hasPermission('exporter_bureau_pdf')
   const canExportExcel = hasPermission('exporter_bureau_excel')
   const canImport = hasPermission('importer_bureau')
+
+  const canApprouverModification = hasPermission('approuver_modification_bureau')
 
   const [rows, setRows]       = useState([])
   const [meta, setMeta]       = useState(null)
@@ -48,14 +51,16 @@ export default function BureauChanges() {
   const [submitConfirm, setSubmitConfirm]       = useState(false)
   const [validateConfirm, setValidateConfirm]   = useState({ open: false, id: null })
   const [rejectConfirm, setRejectConfirm]       = useState({ open: false, id: null })
+  const [reviewModal, setReviewModal]           = useState({ open: false, item: null })
+  const [viewReasonModal, setViewReasonModal] = useState({ open: false, reason: '' })
 
-  // Export PDF
+  // ─── Exports ────────────────────────────────────────────────
   function exportPdf() {
     if (!canExportPdf) return
     const params = new URLSearchParams()
     if (filters.search) params.append('search', filters.search)
     if (filters.statut) params.append('statut', filters.statut)
-    
+
     api.get(`/export/bureau-changes-pdf?${params.toString()}`, {
       responseType: 'blob'
     })
@@ -74,13 +79,12 @@ export default function BureauChanges() {
     })
   }
 
-  // Export Excel
   function exportExcel() {
     if (!canExportExcel) return
     const params = new URLSearchParams()
     if (filters.search) params.append('search', filters.search)
     if (filters.statut) params.append('statut', filters.statut)
-    
+
     api.get(`/export/bureau-changes-excel?${params.toString()}`, {
       responseType: 'blob'
     })
@@ -99,6 +103,7 @@ export default function BureauChanges() {
     })
   }
 
+  // ─── API ─────────────────────────────────────────────────────
   function load() {
     setLoading(true)
     const params = Object.fromEntries(
@@ -111,6 +116,7 @@ export default function BureauChanges() {
 
   useEffect(load, [filters])
 
+  // ─── CRUD ────────────────────────────────────────────────────
   async function submit() {
     setError(''); setSuccess('')
     try {
@@ -119,8 +125,8 @@ export default function BureauChanges() {
           setForm(emptyForm); setEditing(null)
           return
         }
-        await api.put(`/bureau-changes/${editing}`, form)
-        setSuccess('Bureau de change modifié avec succès.')
+        const { data } = await api.put(`/bureau-changes/${editing}`, form)
+        setSuccess(data?.message || 'Modifications proposées. En attente de validation.')
       } else {
         await api.post('/bureau-changes', form)
         setSuccess('Bureau de change créé avec succès.')
@@ -141,10 +147,30 @@ export default function BureauChanges() {
     }
   }
 
-  async function rejeter(id) {
+  async function rejeter(id, commentaire = '') {
     try {
-      await api.post(`/bureau-changes/${id}/rejeter`, {})
+      await api.post(`/bureau-changes/${id}/rejeter`, { commentaire })
       setSuccess('Bureau de change rejeté.')
+      load()
+    } catch (err) {
+      setError(getApiError(err))
+    }
+  }
+
+  async function approuverModification(id) {
+    try {
+      await api.post(`/bureau-changes/${id}/approuver-modification`)
+      setSuccess('Modifications appliquées définitivement.')
+      load()
+    } catch (err) {
+      setError(getApiError(err))
+    }
+  }
+
+  async function rejeterModification(id) {
+    try {
+      await api.post(`/bureau-changes/${id}/rejeter-modification`)
+      setSuccess('Modifications rejetées. Les données restent inchangées.')
       load()
     } catch (err) {
       setError(getApiError(err))
@@ -166,6 +192,7 @@ export default function BureauChanges() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  // ─── Import ──────────────────────────────────────────────────
   async function handleImport(e) {
     e.preventDefault()
     if (!importFile) return
@@ -188,6 +215,7 @@ export default function BureauChanges() {
     }
   }
 
+  // ─── Colonnes ────────────────────────────────────────────────
   const columns = [
     { key: 'numero_ordre',       label: 'N° Ordre' },
     { key: 'designation',        label: 'Désignation' },
@@ -206,14 +234,51 @@ export default function BureauChanges() {
       render: (row) => row.createur?.nom ?? <span className="text-slate-400">N/A</span>,
     },
     {
-      key: 'statut', label: 'Statut',
-      render: (row) => <StatusBadge status={row.statut} />,
+      key: 'statut',
+      label: 'Statut',
+      render: (row) => {
+        // ✅ Nom en italique UNIQUEMENT si statut = 'valide' ou 'rejete' ET validateur ≠ créateur
+        let actorName = null
+        const isModificationPending = row.statut_modification === 'en_attente_validation_modification'
+
+        if (!isModificationPending && (row.statut === 'valide' || row.statut === 'rejete')) {
+          if (row.validateur?.id && row.validateur?.id !== row.createur?.id) {
+            actorName = row.validateur?.nom
+          }
+        }
+
+        // ✅ Le motif de rejet ne s'affiche QUE si le statut est 'rejete' et qu'il n'y a PAS de modification en attente
+        const showRejectReason = row.statut === 'rejete' && row.commentaire && !isModificationPending
+
+        return (
+          <div className="flex flex-col items-start gap-0.5">
+            {isModificationPending ? (
+              <StatusBadge status="en_attente_validation_modification" />
+            ) : (
+              <StatusBadge status={row.statut} />
+            )}
+            {actorName && (
+              <span className="text-[11px] italic text-slate-500 font-normal">
+                {actorName}
+              </span>
+            )}
+            {showRejectReason && (
+              <button
+                onClick={() => setViewReasonModal({ open: true, reason: row.commentaire })}
+                className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:text-rose-800 hover:underline"
+              >
+                <MessageSquare size={12} /> Voir le motif
+              </button>
+            )}
+          </div>
+        )
+      },
     },
     {
       key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          {canModify && row.statut === 'en_attente' && row.createur?.id === user?.id && (
+          {canModify && (row.statut === 'en_attente' || row.statut === 'rejete') && row.createur?.id === user?.id && (
             <button onClick={() => startEdit(row)}
               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
               <Edit size={13} /> Modifier
@@ -229,6 +294,14 @@ export default function BureauChanges() {
             <button onClick={() => setRejectConfirm({ open: true, id: row.id })}
               className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100">
               <X size={13} /> Rejeter
+            </button>
+          )}
+          {canApprouverModification && row.statut_modification === 'en_attente_validation_modification' && (
+            <button
+              onClick={() => setReviewModal({ open: true, item: row })}
+              className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-200 hover:bg-blue-100 transition"
+            >
+              <Eye size={13} /> Voir les modifications
             </button>
           )}
         </div>
@@ -359,7 +432,7 @@ export default function BureauChanges() {
         onPage={(page) => setFilters({ ...filters, page })}
       />
 
-      {/* Modal confirmation création/modification */}
+      {/* Modals */}
       <ConfirmModal
         open={submitConfirm}
         title={editing ? 'Confirmer la modification ?' : 'Confirmer la création ?'}
@@ -369,7 +442,6 @@ export default function BureauChanges() {
         onCancel={() => setSubmitConfirm(false)}
       />
 
-      {/* Modal confirmation validation */}
       <ConfirmModal
         open={validateConfirm.open}
         title="Confirmer l'approbation ?"
@@ -383,19 +455,40 @@ export default function BureauChanges() {
         onCancel={() => setValidateConfirm({ open: false, id: null })}
       />
 
-      {/* Modal confirmation rejet */}
-      <ConfirmModal
+      <RejectReasonModal
         open={rejectConfirm.open}
-        title="Confirmer le refus ?"
-        message="Êtes-vous sûr de vouloir refuser ce bureau de change ?"
-        danger
-        confirmText="Refuser"
-        onConfirm={async () => {
+        title="Refuser ce bureau de change"
+        message="Êtes-vous sûr de vouloir refuser ce bureau de change ? Vous pouvez indiquer la raison du refus ci-dessous :"
+        onConfirm={async (reason) => {
           const id = rejectConfirm.id
           setRejectConfirm({ open: false, id: null })
-          await rejeter(id)
+          await rejeter(id, reason)
         }}
         onCancel={() => setRejectConfirm({ open: false, id: null })}
+      />
+
+      <ViewReasonModal
+        open={viewReasonModal.open}
+        title="Motif du refus du bureau de change"
+        reason={viewReasonModal.reason}
+        onClose={() => setViewReasonModal({ open: false, reason: '' })}
+      />
+
+      <ModificationReviewModal
+        open={reviewModal.open}
+        item={reviewModal.item}
+        fieldLabels={BUREAU_FIELD_LABELS}
+        onConfirm={async () => {
+          const id = reviewModal.item?.id
+          setReviewModal({ open: false, item: null })
+          if (id) await approuverModification(id)
+        }}
+        onReject={async () => {
+          const id = reviewModal.item?.id
+          setReviewModal({ open: false, item: null })
+          if (id) await rejeterModification(id)
+        }}
+        onClose={() => setReviewModal({ open: false, item: null })}
       />
 
       {/* Modal Import Excel */}
@@ -409,7 +502,6 @@ export default function BureauChanges() {
               Le fichier Excel doit contenir les colonnes dans cet ordre :
             </p>
 
-            {/* Exemple de format */}
             <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
               <table className="min-w-full text-xs">
                 <thead className="bg-slate-50">
@@ -432,7 +524,6 @@ export default function BureauChanges() {
               </table>
             </div>
 
-            {/* Résultat import */}
             {importResult && (
               <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
                 <p className="text-sm font-semibold text-emerald-700">

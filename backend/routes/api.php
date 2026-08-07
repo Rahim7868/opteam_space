@@ -41,7 +41,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // ── Export Bureaux de change ────────────────────────────────
     Route::get('/export/bureau-changes-pdf', [ExportController::class, 'exportBureauChangesPdf']);
     Route::get('/export/bureau-changes-excel', [ExportController::class, 'exportBureauChangesExcel']);
-
+    Route::post('/fixings/{fixing}/approuver-modification', [FixingController::class, 'approuverModification']);
+    Route::post('/fixings/{fixing}/rejeter-modification', [FixingController::class, 'rejeterModification']);
+    Route::post('/bureau-changes/{bureauChange}/approuver-modification', [BureauChangeController::class, 'approuverModification']);
+    Route::post('/bureau-changes/{bureauChange}/rejeter-modification', [BureauChangeController::class, 'rejeterModification']);
     // ── Dashboard ──────────────────────────────────────────────
     Route::get('/dashboard', DashboardController::class);
 

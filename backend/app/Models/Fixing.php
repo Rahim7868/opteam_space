@@ -10,11 +10,17 @@ class Fixing extends Model
         'date_fixing', 'devise', 'cours',
         'piece_jointe', 'statut', 'commentaire',
         'created_by', 'validated_by',
+        'statut_modification', 'modification_proposee',
+        'modification_proposee_par', 'modification_approuvee_par',
+        'modification_approuvee_at',
     ];
 
     protected function casts(): array
     {
-        return ['date_fixing' => 'date'];
+        return [
+            'date_fixing' => 'date',
+            'modification_proposee' => 'array',
+        ];
     }
 
     public function createur(): BelongsTo
@@ -27,9 +33,19 @@ class Fixing extends Model
         return $this->belongsTo(User::class, 'validated_by');
     }
 
-    /** Un fixing en attente peut être modifié */
+    public function modificationProposeePar(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'modification_proposee_par');
+    }
+
+    public function modificationApprouveePar(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'modification_approuvee_par');
+    }
+
+    /** Un fixing en attente ou rejeté peut être modifié par son créateur */
     public function isEditable(): bool
     {
-        return $this->statut === 'en_attente';
+        return in_array($this->statut, ['en_attente', 'rejete']);
     }
 }
