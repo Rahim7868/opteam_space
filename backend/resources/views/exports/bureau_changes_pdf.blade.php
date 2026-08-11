@@ -42,7 +42,7 @@
             font-size: 10px;
             font-weight: 600;
         }
-        .badge-validé { background: #dcfce7; color: #166534; }
+        .badge-valide { background: #dcfce7; color: #166534; }
         .badge-en_attente { background: #fef08a; color: #854d0e; }
         .badge-rejete { background: #fee2e2; color: #991b1b; }
         .footer {
@@ -54,21 +54,22 @@
     </style>
 </head>
 <body>
-    <h1>🏢 Liste des Bureaux de change</h1>
+    <h1>Liste des Bureaux de change</h1>
     <div class="info">
-        Exporté le {{ $date_export }} — Total : {{ $total }} bureaux
+        Exporte le {{ $date_export }} — Total : {{ $total }} bureaux
     </div>
 
     <table>
         <thead>
             <tr>
                 <th>N° Ordre</th>
-                <th>Désignation</th>
-                <th>N° Agrément</th>
-                <th>Représentant</th>
+                <th>Designation</th>
+                <th>N° Agrement</th>
+                <th>Date expiration</th>
+                <th>Representant</th>
                 <th>Contact</th>
                 <th>Adresse</th>
-                <th>Créé par</th>
+                <th>Cree par</th>
                 <th>Statut</th>
             </tr>
         </thead>
@@ -78,6 +79,7 @@
                     <td>{{ $bureau->numero_ordre }}</td>
                     <td>{{ $bureau->designation }}</td>
                     <td>{{ $bureau->numero_agrement }}</td>
+                    <td>{{ $bureau->date_expiration_agrement ? \Carbon\Carbon::parse($bureau->date_expiration_agrement)->format('d/m/Y') : 'N/A' }}</td>
                     <td>{{ $bureau->representant_legal }}</td>
                     <td>{{ $bureau->contact ?? 'N/A' }}</td>
                     <td>{{ $bureau->adresse ?? 'N/A' }}</td>
@@ -90,8 +92,8 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="8" style="text-align:center;color:#94a3b8;padding:20px;">
-                        Aucun bureau de change trouvé.
+                    <td colspan="9" style="text-align:center;color:#94a3b8;padding:20px;">
+                        Aucun bureau de change trouve.
                     </td>
                 </tr>
             @endforelse

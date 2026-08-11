@@ -1,0 +1,40 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up()
+    {
+        Schema::table('users', function (Blueprint $table) {
+            $table->string('statut_modification')->nullable();
+            $table->json('modification_proposee')->nullable();
+            $table->foreignId('modification_proposee_par')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+            $table->foreignId('modification_approuvee_par')
+                ->nullable()
+                ->constrained('users')
+                ->nullOnDelete();
+            $table->timestamp('modification_approuvee_at')->nullable();
+        });
+    }
+
+    public function down()
+    {
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropForeign(['modification_proposee_par']);
+            $table->dropForeign(['modification_approuvee_par']);
+            $table->dropColumn([
+                'statut_modification',
+                'modification_proposee',
+                'modification_proposee_par',
+                'modification_approuvee_par',
+                'modification_approuvee_at',
+            ]);
+        });
+    }
+};

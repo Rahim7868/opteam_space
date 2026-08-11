@@ -1,4 +1,4 @@
-import { Edit, Plus, Search, ToggleLeft, ToggleRight, Shield } from 'lucide-react'
+import { Edit, Eye, Plus, Search, Shield, ToggleLeft, ToggleRight } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
@@ -7,6 +7,21 @@ import ErrorAlert from '../components/ErrorAlert'
 import SuccessAlert from '../components/SuccessAlert'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
+import ModificationReviewModal from '../components/ModificationReviewModal'
+import { useAuth } from '../context/AuthContext'
+
+const USER_FIELD_LABELS = {
+  nom: 'Nom',
+  email: 'Email',
+  adresse: 'Adresse',
+  fonction: 'Fonction',
+  role_id: 'Rôle',
+  agence_id: 'Agence',
+  direction_id: 'Direction',
+  departement_id: 'Département',
+  service_id: 'Service',
+  is_active: 'Statut',
+}
 
 const emptyForm = {
   nom: '', email: '', adresse: '',
@@ -16,6 +31,14 @@ const emptyForm = {
 }
 
 export default function Users() {
+  const { user, hasPermission } = useAuth()
+
+  const canCreate = hasPermission('creer_acteurs')
+  const canModify = hasPermission('modifier_acteurs')
+  const canDesactivate = hasPermission('desactiver_acteurs')
+  const canApprouverModification = hasPermission('approuver_modification_user')
+  const isAdmin = user?.role?.libelle === 'Admin'
+
   const [rows, setRows]         = useState([])
   const [meta, setMeta]         = useState(null)
   const [loading, setLoading]   = useState(true)
@@ -38,6 +61,9 @@ export default function Users() {
   const [selectedPerms, setSelectedPerms]   = useState([])
   const [rolePerms, setRolePerms]           = useState([])
   const [loadingPerms, setLoadingPerms]     = useState(false)
+
+  // Modal approbation modification
+  const [reviewModal, setReviewModal] = useState({ open: false, item: null })
 
   // Confirmation modals
   const [submitConfirm, setSubmitConfirm] = useState(false)
@@ -138,8 +164,8 @@ export default function Users() {
           resetForm()
           return
         }
-        await api.put(`/users/${editing}`, form)
-        setSuccess('Acteur mis à jour.')
+        const { data } = await api.put(`/users/${editing}`, form)
+        setSuccess(data?.message || 'Modifications proposées. En attente de validation.')
       } else {
         await api.post('/users', form)
         setSuccess('Acteur créé. Mot de passe initial : 00000000')
@@ -209,9 +235,31 @@ export default function Users() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const originalPermissions   = useRef([])
+  // Fonctions d'approbation des modifications
+  async function approuverModification(id) {
+    try {
+      await api.post(`/users/${id}/approuver-modification`)
+      setSuccess('Modifications appliquées définitivement.')
+      load()
+    } catch (err) {
+      setError(getApiError(err))
+    }
+  }
+
+  async function rejeterModification(id) {
+    try {
+      await api.post(`/users/${id}/rejeter-modification`)
+      setSuccess('Modifications rejetées. Les données restent inchangées.')
+      load()
+    } catch (err) {
+      setError(getApiError(err))
+    }
+  }
+
+  const originalPermissions = useRef([])
 
   function openPermModal(user) {
+    if (!isAdmin) return
     setPermModal({ open: true, user })
     setLoadingPerms(true)
     setSelectedPerms([])
@@ -224,7 +272,6 @@ export default function Users() {
         const permsRole = u.role?.permissions?.map(p => p.libelle) ?? []
         setRolePerms(permsRole)
 
-        // Pré-cocher toutes les permissions effectives de l'acteur (role + directes - retirees)
         const toutesPerms = Array.isArray(u.toutes_permissions)
           ? u.toutes_permissions
           : Object.values(u.toutes_permissions ?? {})
@@ -235,7 +282,7 @@ export default function Users() {
   }
 
   async function executeSavePermissions() {
-    // Vérifier si les permissions ont été modifiées
+    if (!isAdmin) return
     const hasChanged = selectedPerms.length !== originalPermissions.current.length ||
       selectedPerms.some(p => !originalPermissions.current.includes(p))
 
@@ -308,37 +355,67 @@ export default function Users() {
       key: 'is_active', label: 'Statut',
       render: (row) => <StatusBadge status={row.is_active ? 'actif' : 'inactif'} />,
     },
+    // 🔥 Actions avant Modification
     {
       key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          <button
-            onClick={() => startEdit(row)}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-          >
-            <Edit size={13} /> Modifier
-          </button>
-          <button
-            onClick={() => openPermModal(row)}
-            className="inline-flex items-center gap-1 rounded-lg bg-teal-50 px-2.5 py-1.5 text-xs font-semibold text-teal-700 ring-1 ring-teal-200 hover:bg-teal-100"
-          >
-            <Shield size={13} /> Permissions
-          </button>
-          <button
-            onClick={() => setStatusConfirm({ open: true, user: row })}
-            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold ring-1 transition ${
-              row.is_active
-                ? 'bg-rose-50 text-rose-700 ring-rose-200 hover:bg-rose-100'
-                : 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100'
-            }`}
-          >
-            {row.is_active
-              ? <><ToggleRight size={13} /> Désactiver</>
-              : <><ToggleLeft size={13} /> Activer</>
-            }
-          </button>
+          {canModify && (
+            <button
+              onClick={() => startEdit(row)}
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            >
+              <Edit size={13} /> Modifier
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => openPermModal(row)}
+              className="inline-flex items-center gap-1 rounded-lg bg-teal-50 px-2.5 py-1.5 text-xs font-semibold text-teal-700 ring-1 ring-teal-200 hover:bg-teal-100"
+            >
+              <Shield size={13} /> Permissions
+            </button>
+          )}
+          {canDesactivate && (
+            <button
+              onClick={() => setStatusConfirm({ open: true, user: row })}
+              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold ring-1 transition ${
+                row.is_active
+                  ? 'bg-rose-50 text-rose-700 ring-rose-200 hover:bg-rose-100'
+                  : 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100'
+              }`}
+            >
+              {row.is_active
+                ? <><ToggleRight size={13} /> Désactiver</>
+                : <><ToggleLeft size={13} /> Activer</>
+              }
+            </button>
+          )}
+          {canApprouverModification && row.statut_modification === 'en_attente_validation_modification' && (
+            <button
+              onClick={() => setReviewModal({ open: true, item: row })}
+              className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-200 hover:bg-blue-100 transition"
+            >
+              <Eye size={13} /> Voir les modifications
+            </button>
+          )}
         </div>
       ),
+    },
+    // 🔥 Modification après Actions
+    {
+      key: 'statut_modification',
+      label: 'Modification',
+      render: (row) => {
+        if (row.statut_modification === 'en_attente_validation_modification') {
+          return (
+            <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700 ring-1 ring-sky-200">
+              En attente validation modification
+            </span>
+          )
+        }
+        return <span className="text-slate-400 text-xs">—</span>
+      }
     },
   ]
 
@@ -383,140 +460,142 @@ export default function Users() {
       </div>
 
       {/* Formulaire */}
-      <form
-        onSubmit={(e) => { e.preventDefault(); setSubmitConfirm(true) }}
-        className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-      >
-        <h3 className="mb-3 text-sm font-bold text-slate-700">
-          {editing ? 'Modifier un acteur' : 'Ajouter un acteur'}
-        </h3>
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          <div>
-            <label className="block text-sm font-medium text-slate-700">
-              Nom complet <span className="text-slate-700">*</span>
-            </label>
-            <input className="field mt-1" placeholder="Nom complet"
-              value={form.nom}
-              onChange={(e) => setForm({ ...form, nom: e.target.value })}
-              required />
+      {(editing ? canModify : canCreate) && (
+        <form
+          onSubmit={(e) => { e.preventDefault(); setSubmitConfirm(true) }}
+          className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        >
+          <h3 className="mb-3 text-sm font-bold text-slate-700">
+            {editing ? 'Modifier un acteur' : 'Ajouter un acteur'}
+          </h3>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Nom complet <span className="text-slate-700">*</span>
+              </label>
+              <input className="field mt-1" placeholder="Nom complet"
+                value={form.nom}
+                onChange={(e) => setForm({ ...form, nom: e.target.value })}
+                required />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Email <span className="text-slate-700">*</span>
+              </label>
+              <input className="field mt-1" type="email" placeholder="Email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                required />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Adresse <span className="text-slate-700">*</span>
+              </label>
+              <input className="field mt-1" placeholder="Adresse"
+                value={form.adresse}
+                onChange={(e) => setForm({ ...form, adresse: e.target.value })}
+                required />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Fonction <span className="text-slate-700">*</span>
+              </label>
+              <input className="field mt-1" placeholder="Fonction (ex: Directeur, Caissier...)"
+                value={form.fonction}
+                onChange={(e) => setForm({ ...form, fonction: e.target.value })}
+                required />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Rôle <span className="text-slate-700">*</span>
+              </label>
+              <select className="field mt-1" value={form.role_id}
+                onChange={(e) => setForm({ ...form, role_id: e.target.value })}
+                required>
+                <option value="">Sélectionner un rôle</option>
+                {roles.map((r) => <option key={r.id} value={r.id}>{r.libelle}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Agence <span className="text-slate-700">*</span>
+              </label>
+              <select className="field mt-1" value={form.agence_id}
+                onChange={(e) => handleAgenceChange(e.target.value)}
+                required>
+                <option value="">Sélectionner une agence</option>
+                {agences.map((a) => <option key={a.id} value={a.id}>{a.libelle}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Direction <span className="text-slate-700">*</span>
+              </label>
+              <select className="field mt-1" value={form.direction_id}
+                onChange={(e) => handleDirectionChange(e.target.value)}
+                disabled={!form.agence_id}
+                required>
+                <option value="">Sélectionner une direction</option>
+                {directions.map((d) => <option key={d.id} value={d.id}>{d.libelle}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Département <span className="text-slate-700">*</span>
+              </label>
+              <select className="field mt-1" value={form.departement_id}
+                onChange={(e) => handleDepartementChange(e.target.value)}
+                disabled={!form.direction_id}
+                required>
+                <option value="">Sélectionner un département</option>
+                {departements.map((d) => <option key={d.id} value={d.id}>{d.libelle}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Service <span className="text-slate-700">*</span>
+              </label>
+              <select className="field mt-1" value={form.service_id}
+                onChange={(e) => setForm({ ...form, service_id: e.target.value })}
+                disabled={!form.departement_id}
+                required>
+                <option value="">Sélectionner un service</option>
+                {services.map((s) => <option key={s.id} value={s.id}>{s.libelle}</option>)}
+              </select>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700">
-              Email <span className="text-slate-700">*</span>
-            </label>
-            <input className="field mt-1" type="email" placeholder="Email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              required />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700">
-              Adresse <span className="text-slate-700">*</span>
-            </label>
-            <input className="field mt-1" placeholder="Adresse"
-              value={form.adresse}
-              onChange={(e) => setForm({ ...form, adresse: e.target.value })}
-              required />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700">
-              Fonction <span className="text-slate-700">*</span>
-            </label>
-            <input className="field mt-1" placeholder="Fonction (ex: Directeur, Caissier...)"
-              value={form.fonction}
-              onChange={(e) => setForm({ ...form, fonction: e.target.value })}
-              required />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700">
-              Rôle <span className="text-slate-700">*</span>
-            </label>
-            <select className="field mt-1" value={form.role_id}
-              onChange={(e) => setForm({ ...form, role_id: e.target.value })}
-              required>
-              <option value="">Sélectionner un rôle</option>
-              {roles.map((r) => <option key={r.id} value={r.id}>{r.libelle}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700">
-              Agence <span className="text-slate-700">*</span>
-            </label>
-            <select className="field mt-1" value={form.agence_id}
-              onChange={(e) => handleAgenceChange(e.target.value)}
-              required>
-              <option value="">Sélectionner une agence</option>
-              {agences.map((a) => <option key={a.id} value={a.id}>{a.libelle}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700">
-              Direction <span className="text-slate-700">*</span>
-            </label>
-            <select className="field mt-1" value={form.direction_id}
-              onChange={(e) => handleDirectionChange(e.target.value)}
-              disabled={!form.agence_id}
-              required>
-              <option value="">Sélectionner une direction</option>
-              {directions.map((d) => <option key={d.id} value={d.id}>{d.libelle}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700">
-              Département <span className="text-slate-700">*</span>
-            </label>
-            <select className="field mt-1" value={form.departement_id}
-              onChange={(e) => handleDepartementChange(e.target.value)}
-              disabled={!form.direction_id}
-              required>
-              <option value="">Sélectionner un département</option>
-              {departements.map((d) => <option key={d.id} value={d.id}>{d.libelle}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700">
-              Service <span className="text-slate-700">*</span>
-            </label>
-            <select className="field mt-1" value={form.service_id}
-              onChange={(e) => setForm({ ...form, service_id: e.target.value })}
-              disabled={!form.departement_id}
-              required>
-              <option value="">Sélectionner un service</option>
-              {services.map((s) => <option key={s.id} value={s.id}>{s.libelle}</option>)}
-            </select>
-          </div>
-        </div>
-
-        {!editing && (
-          <p className="mt-2 text-xs text-slate-400">
-            Le mot de passe initial sera{' '}
-            <span className="font-mono font-semibold">00000000</span>.
-            L'acteur devra le changer à sa première connexion.
-          </p>
-        )}
-
-        <div className="mt-3 flex gap-2">
-          <button className="btn btn-primary">
-            <Plus size={16} />
-            {editing ? 'Enregistrer les modifications' : "Créer l'acteur"}
-          </button>
-          {editing && (
-            <button type="button"
-              onClick={resetForm}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
-              Annuler
-            </button>
+          {!editing && (
+            <p className="mt-2 text-xs text-slate-400">
+              Le mot de passe initial sera{' '}
+              <span className="font-mono font-semibold">00000000</span>.
+              L'acteur devra le changer à sa première connexion.
+            </p>
           )}
-        </div>
-      </form>
+
+          <div className="mt-3 flex gap-2">
+            <button className="btn btn-primary">
+              <Plus size={16} />
+              {editing ? 'Enregistrer les modifications' : "Créer l'acteur"}
+            </button>
+            {editing && (
+              <button type="button"
+                onClick={resetForm}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                Annuler
+              </button>
+            )}
+          </div>
+        </form>
+      )}
 
       <DataTable
         columns={columns}
@@ -526,8 +605,8 @@ export default function Users() {
         onPage={(page) => setFilters({ ...filters, page })}
       />
 
-      {/* Modal permissions */}
-      {permModal.open && (
+      {/* Modal permissions - UNIQUEMENT pour les Admins */}
+      {isAdmin && permModal.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
             <h3 className="text-lg font-semibold text-slate-800">
@@ -621,6 +700,24 @@ export default function Users() {
           await executeSavePermissions()
         }}
         onCancel={() => setPermsConfirm(false)}
+      />
+
+      {/* Modal approbation des modifications */}
+      <ModificationReviewModal
+        open={reviewModal.open}
+        item={reviewModal.item}
+        fieldLabels={USER_FIELD_LABELS}
+        onConfirm={async () => {
+          const id = reviewModal.item?.id
+          setReviewModal({ open: false, item: null })
+          if (id) await approuverModification(id)
+        }}
+        onReject={async () => {
+          const id = reviewModal.item?.id
+          setReviewModal({ open: false, item: null })
+          if (id) await rejeterModification(id)
+        }}
+        onClose={() => setReviewModal({ open: false, item: null })}
       />
     </>
   )

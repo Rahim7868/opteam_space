@@ -13,6 +13,7 @@ import { RejectReasonModal, ViewReasonModal } from '../components/RejectReasonMo
 
 const emptyForm = {
   numero_ordre: '', designation: '', numero_agrement: '',
+  date_expiration_agrement: '',
   representant_legal: '', contact: '', adresse: '',
 }
 
@@ -54,7 +55,7 @@ export default function BureauChanges() {
   const [reviewModal, setReviewModal]           = useState({ open: false, item: null })
   const [viewReasonModal, setViewReasonModal] = useState({ open: false, reason: '' })
 
-  // ─── Exports ────────────────────────────────────────────────
+  // Exports
   function exportPdf() {
     if (!canExportPdf) return
     const params = new URLSearchParams()
@@ -103,7 +104,7 @@ export default function BureauChanges() {
     })
   }
 
-  // ─── API ─────────────────────────────────────────────────────
+  // API
   function load() {
     setLoading(true)
     const params = Object.fromEntries(
@@ -116,7 +117,7 @@ export default function BureauChanges() {
 
   useEffect(load, [filters])
 
-  // ─── CRUD ────────────────────────────────────────────────────
+  // CRUD
   async function submit() {
     setError(''); setSuccess('')
     try {
@@ -183,6 +184,7 @@ export default function BureauChanges() {
       numero_ordre:       row.numero_ordre ?? '',
       designation:        row.designation,
       numero_agrement:    row.numero_agrement,
+      date_expiration_agrement: row.date_expiration_agrement || '',
       representant_legal: row.representant_legal,
       contact:            row.contact ?? '',
       adresse:            row.adresse ?? '',
@@ -192,7 +194,7 @@ export default function BureauChanges() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  // ─── Import ──────────────────────────────────────────────────
+  // Import
   async function handleImport(e) {
     e.preventDefault()
     if (!importFile) return
@@ -215,11 +217,34 @@ export default function BureauChanges() {
     }
   }
 
-  // ─── Colonnes ────────────────────────────────────────────────
+  // Colonnes
   const columns = [
     { key: 'numero_ordre',       label: 'N° Ordre' },
     { key: 'designation',        label: 'Désignation' },
     { key: 'numero_agrement',    label: 'N° Agrément' },
+    {
+      key: 'expiration',
+      label: 'Expiration agrément',
+      render: (row) => {
+        if (!row.date_expiration_agrement) {
+          return <span className="text-slate-400 text-xs">—</span>
+        }
+
+        const expiration = new Date(row.date_expiration_agrement)
+        const now = new Date()
+        const daysLeft = Math.ceil((expiration - now) / (1000 * 60 * 60 * 24))
+
+        if (daysLeft < 0) {
+          return <span className="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-0.5 text-xs font-medium text-rose-700 ring-1 ring-rose-200">Expiré</span>
+        }
+
+        if (daysLeft <= 30) {
+          return <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200">Expire dans {daysLeft} jour{daysLeft > 1 ? 's' : ''}</span>
+        }
+
+        return <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200">Valide</span>
+      }
+    },
     { key: 'representant_legal', label: 'Représentant' },
     {
       key: 'contact', label: 'Contact',
@@ -237,7 +262,6 @@ export default function BureauChanges() {
       key: 'statut',
       label: 'Statut',
       render: (row) => {
-        // ✅ Nom en italique UNIQUEMENT si statut = 'valide' ou 'rejete' ET validateur ≠ créateur
         let actorName = null
         const isModificationPending = row.statut_modification === 'en_attente_validation_modification'
 
@@ -247,7 +271,6 @@ export default function BureauChanges() {
           }
         }
 
-        // ✅ Le motif de rejet ne s'affiche QUE si le statut est 'rejete' et qu'il n'y a PAS de modification en attente
         const showRejectReason = row.statut === 'rejete' && row.commentaire && !isModificationPending
 
         return (
@@ -386,29 +409,80 @@ export default function BureauChanges() {
             {editing ? 'Modifier le bureau de change' : 'Ajouter un bureau de change'}
           </h3>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            <input className="field" placeholder="N° Ordre *"
-              value={form.numero_ordre}
-              onChange={(e) => setForm({ ...form, numero_ordre: e.target.value })}
-              required />
-            <input className="field" placeholder="Désignation *"
-              value={form.designation}
-              onChange={(e) => setForm({ ...form, designation: e.target.value })}
-              required />
-            <input className="field" placeholder="N° Agrément *"
-              value={form.numero_agrement}
-              onChange={(e) => setForm({ ...form, numero_agrement: e.target.value })}
-              required />
-            <input className="field" placeholder="Représentant légal *"
-              value={form.representant_legal}
-              onChange={(e) => setForm({ ...form, representant_legal: e.target.value })}
-              required />
-            <input className="field" placeholder="Contact"
-              value={form.contact}
-              onChange={(e) => setForm({ ...form, contact: e.target.value })} />
-            <input className="field" placeholder="Adresse"
-              value={form.adresse}
-              onChange={(e) => setForm({ ...form, adresse: e.target.value })} />
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                N° Ordre <span className="text-slate-700">*</span>
+              </label>
+              <input className="field mt-1" placeholder="Ex: BC001"
+                value={form.numero_ordre}
+                onChange={(e) => setForm({ ...form, numero_ordre: e.target.value })}
+                required />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Désignation <span className="text-slate-700">*</span>
+              </label>
+              <input className="field mt-1" placeholder="Nom du bureau"
+                value={form.designation}
+                onChange={(e) => setForm({ ...form, designation: e.target.value })}
+                required />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                N° Agrément <span className="text-slate-700">*</span>
+              </label>
+              <input className="field mt-1" placeholder="Ex: AGR-2024-001"
+                value={form.numero_agrement}
+                onChange={(e) => setForm({ ...form, numero_agrement: e.target.value })}
+                required />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                 Date d'expiration de l'agrément (facultatif)
+              </label>
+              <input
+                type="date"
+                className="field mt-1"
+                value={form.date_expiration_agrement || ''}
+                onChange={(e) => setForm({ ...form, date_expiration_agrement: e.target.value })}
+              />
+              <p className="mt-1 text-xs text-slate-400">
+                Un rappel sera envoyé 30 jours avant l'expiration.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Représentant légal <span className="text-slate-700">*</span>
+              </label>
+              <input className="field mt-1" placeholder="Nom du représentant"
+                value={form.representant_legal}
+                onChange={(e) => setForm({ ...form, representant_legal: e.target.value })}
+                required />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Contact
+              </label>
+              <input className="field mt-1" placeholder="Téléphone / Email"
+                value={form.contact}
+                onChange={(e) => setForm({ ...form, contact: e.target.value })} />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700">
+                Adresse
+              </label>
+              <input className="field mt-1" placeholder="Adresse complète"
+                value={form.adresse}
+                onChange={(e) => setForm({ ...form, adresse: e.target.value })} />
+            </div>
           </div>
+
           <div className="mt-3 flex gap-2">
             <button className="btn btn-primary">
               <Plus size={16} /> {editing ? 'Enregistrer' : 'Ajouter'}
@@ -506,7 +580,7 @@ export default function BureauChanges() {
               <table className="min-w-full text-xs">
                 <thead className="bg-slate-50">
                   <tr>
-                    {['numero_ordre', 'designation', 'numero_agrement', 'representant_legal', 'contact', 'adresse'].map(h => (
+                    {['numero_ordre', 'designation', 'numero_agrement', 'date_expiration_agrement', 'representant_legal', 'contact', 'adresse'].map(h => (
                       <th key={h} className="px-2 py-1.5 text-left font-semibold text-slate-600">{h}</th>
                     ))}
                   </tr>
@@ -516,6 +590,7 @@ export default function BureauChanges() {
                     <td className="px-2 py-1.5 text-slate-500">BC001</td>
                     <td className="px-2 py-1.5 text-slate-500">Bureau A</td>
                     <td className="px-2 py-1.5 text-slate-500">AGR-001</td>
+                    <td className="px-2 py-1.5 text-slate-500">2025-12-31</td>
                     <td className="px-2 py-1.5 text-slate-500">Jean Dupont</td>
                     <td className="px-2 py-1.5 text-slate-500">620...</td>
                     <td className="px-2 py-1.5 text-slate-500">Conakry</td>
@@ -527,13 +602,13 @@ export default function BureauChanges() {
             {importResult && (
               <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
                 <p className="text-sm font-semibold text-emerald-700">
-                  ✅ {importResult.imported} bureau(x) importé(s)
+                  {importResult.imported} bureau(x) importé(s)
                   {importResult.skipped > 0 && ` — ${importResult.skipped} ignoré(s)`}
                 </p>
                 {importResult.errors?.length > 0 && (
                   <ul className="mt-2 space-y-1">
                     {importResult.errors.map((err, i) => (
-                      <li key={i} className="text-xs text-amber-700">⚠️ {err}</li>
+                      <li key={i} className="text-xs text-amber-700">{err}</li>
                     ))}
                   </ul>
                 )}

@@ -30,14 +30,15 @@ class BureauChangesExport implements FromCollection, WithHeadings, WithMapping, 
     public function headings(): array
     {
         return [
-            '🏷️ N° Ordre',
-            '🏢 Désignation',
-            '📋 N° Agrément',
-            '👤 Représentant',
-            '📞 Contact',
-            '📍 Adresse',
-            '✏️ Créé par',
-            '📌 Statut'
+            'N° Ordre',
+            'Désignation',
+            'N° Agrément',
+            'Date expiration agrément', // NOUVEAU
+            'Représentant',
+            'Contact',
+            'Adresse',
+            'Créé par',
+            'Statut'
         ];
     }
 
@@ -47,6 +48,7 @@ class BureauChangesExport implements FromCollection, WithHeadings, WithMapping, 
             $bureau->numero_ordre,
             $bureau->designation,
             $bureau->numero_agrement,
+            $bureau->date_expiration_agrement ? \Carbon\Carbon::parse($bureau->date_expiration_agrement)->format('d/m/Y') : 'N/A', // NOUVEAU
             $bureau->representant_legal,
             $bureau->contact ?? 'N/A',
             $bureau->adresse ?? 'N/A',
@@ -58,7 +60,7 @@ class BureauChangesExport implements FromCollection, WithHeadings, WithMapping, 
     public function styles(Worksheet $sheet)
     {
         // Style de l'en-tête
-        $sheet->getStyle('A1:H1')->applyFromArray([
+        $sheet->getStyle('A1:I1')->applyFromArray([
             'font' => [
                 'bold' => true,
                 'color' => ['rgb' => 'FFFFFF'],
@@ -75,7 +77,7 @@ class BureauChangesExport implements FromCollection, WithHeadings, WithMapping, 
         ]);
 
         // Bordure du tableau
-        $sheet->getStyle('A1:H' . ($sheet->getHighestRow()))->applyFromArray([
+        $sheet->getStyle('A1:I' . ($sheet->getHighestRow()))->applyFromArray([
             'borders' => [
                 'allBorders' => [
                     'borderStyle' => Border::BORDER_THIN,
@@ -94,14 +96,15 @@ class BureauChangesExport implements FromCollection, WithHeadings, WithMapping, 
         $sheet->getColumnDimension('A')->setWidth(15);
         $sheet->getColumnDimension('B')->setWidth(30);
         $sheet->getColumnDimension('C')->setWidth(20);
-        $sheet->getColumnDimension('D')->setWidth(25);
-        $sheet->getColumnDimension('E')->setWidth(18);
-        $sheet->getColumnDimension('F')->setWidth(30);
-        $sheet->getColumnDimension('G')->setWidth(20);
-        $sheet->getColumnDimension('H')->setWidth(15);
+        $sheet->getColumnDimension('D')->setWidth(20); // Date expiration
+        $sheet->getColumnDimension('E')->setWidth(25);
+        $sheet->getColumnDimension('F')->setWidth(18);
+        $sheet->getColumnDimension('G')->setWidth(30);
+        $sheet->getColumnDimension('H')->setWidth(20);
+        $sheet->getColumnDimension('I')->setWidth(15);
 
         // Centrer le contenu
-        $sheet->getStyle('A2:H' . $sheet->getHighestRow())
+        $sheet->getStyle('A2:I' . $sheet->getHighestRow())
             ->getAlignment()
             ->setHorizontal(Alignment::HORIZONTAL_CENTER)
             ->setVertical(Alignment::VERTICAL_CENTER);
@@ -110,7 +113,7 @@ class BureauChangesExport implements FromCollection, WithHeadings, WithMapping, 
         $rowCount = $sheet->getHighestRow();
         for ($i = 2; $i <= $rowCount; $i++) {
             if ($i % 2 == 0) {
-                $sheet->getStyle("A{$i}:H{$i}")->applyFromArray([
+                $sheet->getStyle("A{$i}:I{$i}")->applyFromArray([
                     'fill' => [
                         'fillType' => Fill::FILL_SOLID,
                         'startColor' => ['rgb' => 'F8FAFC'],
@@ -122,14 +125,14 @@ class BureauChangesExport implements FromCollection, WithHeadings, WithMapping, 
         // Couleurs pour le statut
         $lastRow = $sheet->getHighestRow();
         for ($i = 2; $i <= $lastRow; $i++) {
-            $statut = $sheet->getCell("H{$i}")->getValue();
+            $statut = $sheet->getCell("I{$i}")->getValue();
             $color = match (strtolower($statut)) {
                 'valide' => 'DCFCE7',
                 'en_attente' => 'FEF08A',
                 'rejete' => 'FEE2E2',
                 default => 'FFFFFF',
             };
-            $sheet->getStyle("H{$i}")->applyFromArray([
+            $sheet->getStyle("I{$i}")->applyFromArray([
                 'fill' => [
                     'fillType' => Fill::FILL_SOLID,
                     'startColor' => ['rgb' => $color],

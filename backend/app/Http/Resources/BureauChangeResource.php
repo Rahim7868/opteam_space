@@ -23,6 +23,8 @@ class BureauChangeResource extends JsonResource
             'numero_ordre'       => $this->numero_ordre,
             'designation'        => $this->designation,
             'numero_agrement'    => $this->numero_agrement,
+            'date_expiration_agrement' => $this->date_expiration_agrement, // 🔥 AJOUT
+            'statut_expiration'  => $this->statut_expiration, // 🔥 AJOUT
             'representant_legal' => $this->representant_legal,
             'contact'            => $this->contact,
             'adresse'            => $this->adresse,

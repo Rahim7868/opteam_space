@@ -32,6 +32,7 @@ class BureauChangeRequest extends FormRequest
                 Rule::unique('bureau_changes', 'numero_agrement')
                     ->ignore($bureauChange?->id ?? $bureauChange),
             ],
+            'date_expiration_agrement' => ['nullable', 'date', 'after_or_equal:today'], // 
             'representant_legal' => ['required', 'string', 'max:255'],
             'contact'            => ['required', 'string', 'regex:/^[0-9]{9}$/'],
             'adresse'            => ['nullable', 'string', 'max:255'],
@@ -44,6 +45,7 @@ class BureauChangeRequest extends FormRequest
             'designation.required'        => 'La désignation est obligatoire.',
             'numero_agrement.required'    => 'Le numéro d\'agrément est obligatoire.',
             'numero_agrement.unique'      => 'Ce numéro d\'agrément existe déjà.',
+            'date_expiration_agrement.after_or_equal' => 'La date d\'expiration ne peut pas être antérieure à la date d\'aujourd\'hui.', // 
             'representant_legal.required' => 'Le représentant légal est obligatoire.',
             'contact.required'            => 'Le numéro de contact est obligatoire.',
             'contact.regex'               => 'Le numéro de contact doit être composé de 9 chiffres exacts et sans espaces (ex: 622111111).',

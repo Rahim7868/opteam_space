@@ -8,6 +8,7 @@ class BureauChange extends Model
 {
     protected $fillable = [
         'numero_ordre', 'designation', 'numero_agrement',
+        'date_expiration_agrement', // 
         'representant_legal', 'contact', 'adresse',
         'statut', 'commentaire',
         'created_by', 'validated_by',
@@ -20,7 +21,29 @@ class BureauChange extends Model
     {
         return [
             'modification_proposee' => 'array',
+            'date_expiration_agrement' => 'date', // 🔥 AJOUT
         ];
+    }
+
+    //  NOUVEAU : Calcul du statut d'expiration
+    public function getStatutExpirationAttribute()
+    {
+        if (!$this->date_expiration_agrement) {
+            return null;
+        }
+
+        $now = now();
+        $expiration = $this->date_expiration_agrement;
+
+        if ($expiration->isPast()) {
+            return 'expire';
+        }
+
+        if ($expiration->diffInDays($now) <= 30) {
+            return 'proche_expiration';
+        }
+
+        return 'valide';
     }
 
     public function createur(): BelongsTo

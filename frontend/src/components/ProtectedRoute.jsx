@@ -1,7 +1,7 @@
 import { Navigate, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
-export default function ProtectedRoute({ permission, blockIfMustChange }) {
+export default function ProtectedRoute({ permission, permissions, blockIfMustChange }) {
   const { user, loading } = useAuth()
 
   if (loading) {
@@ -20,9 +20,20 @@ export default function ProtectedRoute({ permission, blockIfMustChange }) {
     return <Navigate to="/change-password" replace />
   }
 
-  // Permission manquante
-  if (permission && !user.toutes_permissions?.includes(permission)) {
+  // Toutes les permissions effectives (gère le cas Array ou Object)
+  const userPerms = Array.isArray(user.toutes_permissions)
+    ? user.toutes_permissions
+    : Object.values(user.toutes_permissions ?? {})
+
+  // Permission unique requise
+  if (permission && !userPerms.includes(permission)) {
     return <Navigate to="/" replace />
+  }
+
+  // Tableau de permissions : l'utilisateur doit en avoir AU MOINS UNE
+  if (permissions && permissions.length > 0) {
+    const hasAny = permissions.some((p) => userPerms.includes(p))
+    if (!hasAny) return <Navigate to="/" replace />
   }
 
   return <Outlet />

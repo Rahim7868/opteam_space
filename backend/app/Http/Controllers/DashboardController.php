@@ -43,8 +43,8 @@ class DashboardController extends Controller
                 ->get(),
         ];
 
-        // ── Stats globales → uniquement si permission gerer_acteurs ──
-        if ($user->hasPermission('gerer_acteurs')) {
+        // ── Stats globales → uniquement si l'utilisateur gère les acteurs ──
+        if ($user->hasPermission('modifier_acteurs') || $user->hasPermission('creer_acteurs') || $user->hasPermission('supprimer_acteurs') || $user->hasPermission('desactiver_acteurs')) {
             $payload['acteurs_total']  = User::count();
             $payload['acteurs_actifs'] = User::where('is_active', true)->count();
             $payload['audit_logs_total'] = AuditLog::count();

@@ -9,6 +9,7 @@ use App\Models\BureauChange;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Storage; //
 use Maatwebsite\Excel\Facades\Excel;
 
 class BureauChangeController extends Controller
@@ -81,14 +82,12 @@ class BureauChangeController extends Controller
 
         $data = $request->validated();
 
-        //  Si un fichier est uploadé, ajouter son URL dans les données proposées
         if ($request->hasFile('piece_jointe')) {
             $filePath = $request->file('piece_jointe')->store('bureau_changes', 'public');
             $data['piece_jointe'] = $filePath;
             $data['piece_jointe_url'] = Storage::disk('public')->url($filePath);
         }
 
-        // Modification proposée : statut_modification = 'en_attente_validation_modification'
         $bureauChange->update([
             'statut_modification' => 'en_attente_validation_modification',
             'modification_proposee' => $data,
@@ -123,8 +122,6 @@ class BureauChangeController extends Controller
             ], 422);
         }
 
-        //  Approbation : appliquer les modifications, réinitialiser le statut_modification
-        //  Si l'élément était rejeté, il repasse en 'en_attente'
         $newStatut = $bureauChange->statut === 'rejete' ? 'en_attente' : $bureauChange->statut;
 
         $bureauChange->update([
@@ -246,7 +243,6 @@ class BureauChangeController extends Controller
             ], 422);
         }
 
-        //  Rejet de la modification : réinitialiser le statut_modification, garder le statut inchangé
         $bureauChange->update([
             'statut_modification' => null,
             'modification_proposee' => null,

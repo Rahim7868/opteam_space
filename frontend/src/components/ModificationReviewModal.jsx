@@ -14,6 +14,7 @@ export const BUREAU_FIELD_LABELS = {
   numero_ordre: 'N° Ordre',
   designation: 'Désignation',
   numero_agrement: 'N° Agrément',
+  date_expiration_agrement: 'Date expiration agrément',
   representant_legal: 'Représentant légal',
   contact: 'Contact',
   adresse: 'Adresse',
@@ -22,14 +23,26 @@ export const BUREAU_FIELD_LABELS = {
 
 function formatValue(value) {
   if (value === null || value === undefined || value === '') return '—'
+
+  // Si c'est une date ISO (ex: 2026-08-20T00:00:00.000000Z)
+  if (typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}T/)) {
+    return new Date(value).toLocaleDateString('fr-FR')
+  }
+
+  // Si c'est une date au format YYYY-MM-DD (ex: 2026-08-29)
+  if (typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const parts = value.split('-')
+    return `${parts[2]}/${parts[1]}/${parts[0]}`
+  }
+
   return String(value)
 }
 
-// 🔥 Génère une URL de fichier à partir d'un chemin
+// Génère une URL de fichier à partir d'un chemin
 function generateFileUrl(filePath) {
-  // 🔥 Vérifier que filePath est une chaîne
+  // Vérifier que filePath est une chaîne
   if (!filePath || typeof filePath !== 'string') return null
-  
+
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) return filePath
   if (filePath.startsWith('/storage')) return filePath
   if (filePath.startsWith('storage')) return '/' + filePath
@@ -37,12 +50,12 @@ function generateFileUrl(filePath) {
 }
 
 function renderFileLink(value, url) {
-  // 🔥 Si on a une URL, afficher le lien "Voir"
+  // Si on a une URL, afficher le lien "Voir"
   if (url) {
     return (
-      <a 
-        href={url} 
-        target="_blank" 
+      <a
+        href={url}
+        target="_blank"
         rel="noopener noreferrer"
         className="inline-flex items-center gap-1 text-teal-600 hover:underline font-medium text-xs"
       >
@@ -50,15 +63,15 @@ function renderFileLink(value, url) {
       </a>
     )
   }
-  
-  // 🔥 Si on a un nom de fichier mais pas d'URL, essayer de générer l'URL
+
+  // Si on a un nom de fichier mais pas d'URL, essayer de générer l'URL
   if (value && typeof value === 'string') {
     const generatedUrl = generateFileUrl(value)
     if (generatedUrl) {
       return (
-        <a 
-          href={generatedUrl} 
-          target="_blank" 
+        <a
+          href={generatedUrl}
+          target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-teal-600 hover:underline font-medium text-xs"
         >
@@ -68,11 +81,11 @@ function renderFileLink(value, url) {
     }
     return (
       <span className="text-slate-500 text-xs">
-        📎 {value.split('/').pop()}
+        {value.split('/').pop()}
       </span>
     )
   }
-  
+
   return '—'
 }
 
@@ -90,24 +103,27 @@ export default function ModificationReviewModal({
   if (!open || !item || !item.modification_proposee) return null
 
   const proposed = item.modification_proposee
+  const proposedLibelles = item.modification_proposee_libelles || proposed
+  const currentLibelles = item.valeurs_actuelles_libelles || {}
 
-  // 🔥 URLs des fichiers (ancien et nouveau)
+  // URLs des fichiers (ancien et nouveau)
   const oldFileUrl = item.piece_jointe_url || generateFileUrl(item.piece_jointe)
   const newFileUrl = proposed.piece_jointe_url || generateFileUrl(proposed.piece_jointe)
 
   const changes = Object.keys(proposed)
-    .filter((key) => {
-      if (key === 'piece_jointe_url') return false
-      const oldVal = String(item[key] ?? '')
-      const newVal = String(proposed[key] ?? '')
-      return oldVal !== newVal
+    .filter((key) => key !== 'piece_jointe_url')
+    .map((key) => {
+      const oldValue = currentLibelles[key] !== undefined ? currentLibelles[key] : item[key]
+      const newValue = proposedLibelles[key] !== undefined ? proposedLibelles[key] : proposed[key]
+
+      return {
+        key,
+        label: fieldLabels[key] || key,
+        oldValue,
+        newValue,
+      }
     })
-    .map((key) => ({
-      key,
-      label: fieldLabels[key] || key,
-      oldValue: item[key],
-      newValue: proposed[key],
-    }))
+    .filter(({ oldValue, newValue }) => String(oldValue ?? '') !== String(newValue ?? ''))
 
   return (
     <>
@@ -117,11 +133,11 @@ export default function ModificationReviewModal({
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold text-slate-800">
-                  👁️ Modifications proposées
+                  Modifications proposees
                 </h3>
                 {item.modification_proposee_par_nom && (
                   <p className="mt-1 text-sm text-slate-500">
-                    Proposées par{' '}
+                    Proposees par{' '}
                     <span className="font-semibold text-slate-700">
                       {item.modification_proposee_par_nom}
                     </span>
@@ -140,7 +156,7 @@ export default function ModificationReviewModal({
           <div className="px-6 py-5">
             {changes.length === 0 ? (
               <p className="text-center text-sm text-slate-500">
-                Aucune modification détectée.
+                Aucune modification detectee.
               </p>
             ) : (
               <div className="overflow-hidden rounded-2xl border border-slate-200">
@@ -164,7 +180,7 @@ export default function ModificationReviewModal({
 
                       let oldDisplay
                       let newDisplay
-                      
+
                       if (isFileField) {
                         oldDisplay = renderFileLink(oldValue, oldFileUrl)
                         newDisplay = renderFileLink(newValue, newFileUrl)

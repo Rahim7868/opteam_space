@@ -114,7 +114,7 @@ export default function Dashboard() {
 
   // Cartes conditionnelles selon permissions
   const extraCards = [
-    hasPermission('gerer_acteurs') && {
+    hasPermission('modifier_acteurs') && {
       key: 'acteurs_total',
       label: 'Acteurs',
       icon: Users,
@@ -206,7 +206,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Audit logs récents (si permission) ────────────── */}
-      {hasPermission('gerer_acteurs') && (
+      {hasPermission('modifier_acteurs') && (
         <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-base font-bold text-slate-950">
             Activité récente

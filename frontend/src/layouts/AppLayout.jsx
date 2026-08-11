@@ -46,8 +46,9 @@ export default function AppLayout() {
     },
   ].filter((l) => l.always || l.show)
 
+  // 🔥 ACTEURS : remplacer 'gerer_acteurs' par les nouvelles permissions
   const acteursLinks = [
-    { to: '/users',       label: 'Utilisateurs', permission: 'gerer_acteurs' },
+    { to: '/users',       label: 'Utilisateurs', permission: 'modifier_acteurs' },
     { to: '/roles',       label: 'Rôles',        permission: 'gerer_roles' },
     { to: '/permissions', label: 'Permissions',  permission: 'gerer_permissions' },
   ].filter((l) => hasPermission(l.permission))
@@ -66,7 +67,8 @@ export default function AppLayout() {
     { to: '/audit-logs/acces', label: 'Utilisateurs, rôles et permissions' },
   ]
 
-  const showAudit     = hasPermission('gerer_acteurs')
+  // 🔥 AUDIT : remplacer 'gerer_acteurs' par 'modifier_acteurs'
+  const showAudit     = hasPermission('modifier_acteurs')
   const showActeurs   = acteursLinks.length > 0
   const showStructure = structureLinks.length > 0
 

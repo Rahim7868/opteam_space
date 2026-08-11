@@ -27,6 +27,9 @@ class User extends Authenticatable
         'nom', 'email', 'password', 'adresse', 'fonction',
         'service_id', 'role_id',
         'is_active', 'must_change_password',
+        'statut_modification', 'modification_proposee',
+        'modification_proposee_par', 'modification_approuvee_par',
+        'modification_approuvee_at',
     ];
 
     protected $hidden = ['password', 'remember_token'];
@@ -34,11 +37,13 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'password'             => 'hashed',
-            'is_active'            => 'boolean',
-            'must_change_password' => 'boolean',
+            'password'              => 'hashed',
+            'is_active'             => 'boolean',
+            'must_change_password'  => 'boolean',
+            'modification_proposee' => 'array',
         ];
     }
+
     // ── Relations ─────────────────────────────────────────────
 
     public function service(): BelongsTo
@@ -49,6 +54,16 @@ class User extends Authenticatable
     public function role(): BelongsTo
     {
         return $this->belongsTo(Role::class);
+    }
+
+    public function modificationProposeePar(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'modification_proposee_par');
+    }
+
+    public function modificationApprouveePar(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'modification_approuvee_par');
     }
 
     /** Permissions individuelles attribuées manuellement */

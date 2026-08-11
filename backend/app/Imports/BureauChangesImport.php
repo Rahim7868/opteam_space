@@ -39,6 +39,7 @@ class BureauChangesImport implements ToCollection, WithHeadingRow, WithValidatio
                 'numero_ordre'       => $row['numero_ordre'] ?? null,
                 'designation'        => $row['designation'],
                 'numero_agrement'    => $row['numero_agrement'],
+                'date_expiration_agrement' => $row['date_expiration_agrement'] ?? null, // NOUVEAU
                 'representant_legal' => $row['representant_legal'],
                 'contact'            => $contact,
                 'adresse'            => $row['adresse'] ?? null,
@@ -55,6 +56,7 @@ class BureauChangesImport implements ToCollection, WithHeadingRow, WithValidatio
         return [
             '*.designation'        => ['required', 'string'],
             '*.numero_agrement'    => ['required', 'string'],
+            '*.date_expiration_agrement' => ['nullable', 'date'], // NOUVEAU
             '*.representant_legal' => ['required', 'string'],
             '*.contact'            => ['required', 'regex:/^[0-9]{9}$|^\s*[0-9](\s*[0-9]\s*){8}$/'],
         ];
