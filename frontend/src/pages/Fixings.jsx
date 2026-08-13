@@ -1,4 +1,4 @@
-import { Check, Edit, Eye, FileDown, FileSpreadsheet, MessageSquare, Plus, Search, X } from 'lucide-react'
+import { Check, Edit, Eye, FileDown, FileSpreadsheet, MessageSquare, Plus, Search, X, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
@@ -43,17 +43,22 @@ export default function Fixings() {
 
   const canApprouverModification = hasPermission('approuver_modification_fixing')
 
+  // Admin peut modifier les fixings des autres
+  const isAdmin = user?.role?.libelle === 'Admin' || (hasPermission('creer_acteurs') && hasPermission('modifier_acteurs'))
+
   const [rows, setRows]           = useState([])
   const [chartRows, setChartRows] = useState([])
   const [meta, setMeta]           = useState(null)
   const [loading, setLoading]     = useState(true)
   const [chartLoading, setChartLoading] = useState(true)
-  const [filters, setFilters]     = useState({ statut: '', devise: '', page: 1 })
+  const defaultFilters = { statut: '', devise: '', date_debut: '', date_fin: '', createur_id: '', page: 1 }
+  const [filters, setFilters]     = useState(defaultFilters)
   const [form, setForm]           = useState(emptyForm)
   const [editingId, setEditingId] = useState(null)
   const [error, setError]         = useState('')
   const [success, setSuccess]     = useState('')
   const originalForm = useRef(null)
+  const [createurs, setCreateurs] = useState([])
 
   const [submitConfirm, setSubmitConfirm]     = useState(false)
   const [validateConfirm, setValidateConfirm] = useState({ open: false, id: null })
@@ -62,12 +67,26 @@ export default function Fixings() {
   const [reviewModal, setReviewModal]           = useState({ open: false, item: null })
   const [viewReasonModal, setViewReasonModal] = useState({ open: false, reason: '' })
 
-  // ─── Exports ────────────────────────────────────────────────
+  // Charger la liste des créateurs
+  useEffect(() => {
+    api.get('/users', { params: { per_page: 1000 } })
+      .then(({ data }) => setCreateurs(data.data ?? []))
+      .catch(() => {})
+  }, [])
+
+  function resetFilters() {
+    setFilters(defaultFilters)
+  }
+
+  // Exports
   function exportPdf() {
     if (!canExportPdf) return
     const params = new URLSearchParams()
     if (filters.statut) params.append('statut', filters.statut)
     if (filters.devise) params.append('devise', filters.devise)
+    if (filters.date_debut) params.append('date_debut', filters.date_debut)
+    if (filters.date_fin) params.append('date_fin', filters.date_fin)
+    if (filters.createur_id) params.append('createur_id', filters.createur_id)
 
     api.get(`/export/fixings-pdf?${params.toString()}`, {
       responseType: 'blob'
@@ -92,6 +111,9 @@ export default function Fixings() {
     const params = new URLSearchParams()
     if (filters.statut) params.append('statut', filters.statut)
     if (filters.devise) params.append('devise', filters.devise)
+    if (filters.date_debut) params.append('date_debut', filters.date_debut)
+    if (filters.date_fin) params.append('date_fin', filters.date_fin)
+    if (filters.createur_id) params.append('createur_id', filters.createur_id)
 
     api.get(`/export/fixings-excel?${params.toString()}`, {
       responseType: 'blob'
@@ -111,7 +133,7 @@ export default function Fixings() {
     })
   }
 
-  // ─── API ─────────────────────────────────────────────────────
+  // API
   function load() {
     setLoading(true)
     const params = Object.fromEntries(
@@ -132,7 +154,7 @@ export default function Fixings() {
   useEffect(load, [filters])
   useEffect(loadChartData, [])
 
-  // ─── CRUD ────────────────────────────────────────────────────
+  // CRUD
   async function submit() {
     setError('')
     setSuccess('')
@@ -215,7 +237,7 @@ export default function Fixings() {
     }
   }
 
-  // ─── Colonnes ────────────────────────────────────────────────
+  // Colonnes
   const columns = [
     { key: 'date_fixing', label: 'Date' },
     { key: 'devise',      label: 'Devise' },
@@ -253,7 +275,6 @@ export default function Fixings() {
       key: 'statut',
       label: 'Statut',
       render: (row) => {
-        // ✅ Nom en italique UNIQUEMENT si statut = 'valide' ou 'rejete' ET validateur ≠ créateur
         let actorName = null
         const isModificationPending = row.statut_modification === 'en_attente_validation_modification'
 
@@ -263,7 +284,6 @@ export default function Fixings() {
           }
         }
 
-        // ✅ Le motif de rejet ne s'affiche QUE si le statut est 'rejete' et qu'il n'y a PAS de modification en attente
         const showRejectReason = row.statut === 'rejete' && row.commentaire && !isModificationPending
 
         return (
@@ -294,7 +314,7 @@ export default function Fixings() {
       key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          {canModify && (row.statut === 'en_attente' || row.statut === 'rejete') && row.createur?.id === user?.id && (
+          {canModify && (row.statut === 'en_attente' || row.statut === 'rejete') && (isAdmin || row.createur?.id === user?.id) && (
             <button
               onClick={() => {
                 setEditingId(row.id)
@@ -383,29 +403,60 @@ export default function Fixings() {
       <SuccessAlert message={success} onDismiss={() => setSuccess('')} />
 
       {/* Filtres */}
-      <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px]">
-        <div className="relative">
-          <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
-          <select
-            className="field pl-9"
-            value={filters.devise}
-            onChange={(e) => setFilters({ ...filters, devise: e.target.value, page: 1 })}
-          >
-            <option value="">Toutes devises</option>
-            {currencies.map((c) => <option key={c}>{c}</option>)}
-          </select>
-        </div>
+      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+        <select
+          className="field w-full"
+          value={filters.devise}
+          onChange={(e) => setFilters({ ...filters, devise: e.target.value, page: 1 })}
+        >
+          <option value="">Toutes les dévises</option>
+          {currencies.map((c) => <option key={c}>{c}</option>)}
+        </select>
 
         <select
-          className="field"
+          className="field w-full"
           value={filters.statut}
           onChange={(e) => setFilters({ ...filters, statut: e.target.value, page: 1 })}
         >
-          <option value="">Tous statuts</option>
+          <option value="">Tout les status</option>
           <option value="en_attente">En attente</option>
           <option value="valide">Validés</option>
           <option value="rejete">Rejetés</option>
         </select>
+
+        <input
+          type="date"
+          className="field w-full"
+          placeholder="Date début"
+          value={filters.date_debut || ''}
+          onChange={(e) => setFilters({ ...filters, date_debut: e.target.value, page: 1 })}
+        />
+
+        <input
+          type="date"
+          className="field w-full"
+          placeholder="Date fin"
+          value={filters.date_fin || ''}
+          onChange={(e) => setFilters({ ...filters, date_fin: e.target.value, page: 1 })}
+        />
+
+        <select
+          className="field w-full"
+          value={filters.createur_id}
+          onChange={(e) => setFilters({ ...filters, createur_id: e.target.value, page: 1 })}
+        >
+          <option value="">Tous les créateurs</option>
+          {createurs.map((u) => (
+            <option key={u.id} value={u.id}>{u.nom}</option>
+          ))}
+        </select>
+
+        <button
+          onClick={resetFilters}
+          className="inline-flex h-10 items-center justify-center gap-1 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 transition"
+        >
+          <RefreshCw size={14} /> Réinitialiser
+        </button>
       </div>
 
       {/* Formulaire création/modification */}

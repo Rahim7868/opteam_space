@@ -10,7 +10,7 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ExportController extends Controller
 {
-    // ──── EXPORT FIXINGS PDF ────
+    // EXPORT FIXINGS PDF
     public function exportFixingsPdf(Request $request)
     {
         $query = Fixing::query()
@@ -24,6 +24,19 @@ class ExportController extends Controller
 
         if ($request->devise) {
             $query->where('devise', $request->devise);
+        }
+
+        // Nouveau : filtre par créateur
+        if ($request->createur_id) {
+            $query->where('created_by', $request->createur_id);
+        }
+
+        // Nouveau : filtre par tranche de dates
+        if ($request->date_debut) {
+            $query->whereDate('date_fixing', '>=', $request->date_debut);
+        }
+        if ($request->date_fin) {
+            $query->whereDate('date_fixing', '<=', $request->date_fin);
         }
 
         // Permission "consulter_fixing"
@@ -59,7 +72,7 @@ class ExportController extends Controller
         return $pdf->download('fixings_' . now()->format('Y-m-d') . '.pdf');
     }
 
-    // ──── EXPORT FIXINGS EXCEL ────
+    // EXPORT FIXINGS EXCEL
     public function exportFixingsExcel(Request $request)
     {
         $query = Fixing::query()
@@ -73,6 +86,19 @@ class ExportController extends Controller
 
         if ($request->devise) {
             $query->where('devise', $request->devise);
+        }
+
+        // Nouveau : filtre par créateur
+        if ($request->createur_id) {
+            $query->where('created_by', $request->createur_id);
+        }
+
+        // Nouveau : filtre par tranche de dates
+        if ($request->date_debut) {
+            $query->whereDate('date_fixing', '>=', $request->date_debut);
+        }
+        if ($request->date_fin) {
+            $query->whereDate('date_fixing', '<=', $request->date_fin);
         }
 
         // Permission "consulter_fixing"
@@ -102,7 +128,7 @@ class ExportController extends Controller
         );
     }
 
-    // ──── EXPORT BUREAUX DE CHANGE PDF ────
+    // EXPORT BUREAUX DE CHANGE PDF
     public function exportBureauChangesPdf(Request $request)
     {
         $query = BureauChange::query()
@@ -116,11 +142,17 @@ class ExportController extends Controller
                 ->where('numero_ordre', 'like', "%{$search}%")
                 ->orWhere('designation', 'like', "%{$search}%")
                 ->orWhere('numero_agrement', 'like', "%{$search}%")
+                ->orWhere('adresse', 'like', "%{$search}%")
             );
         }
 
         if ($request->statut) {
             $query->where('statut', $request->statut);
+        }
+
+        // Nouveau : filtre par créateur
+        if ($request->createur_id) {
+            $query->where('created_by', $request->createur_id);
         }
 
         // Permission "consulter_bureau_change"
@@ -142,7 +174,7 @@ class ExportController extends Controller
         return $pdf->download('bureaux_change_' . now()->format('Y-m-d') . '.pdf');
     }
 
-    // ──── EXPORT BUREAUX DE CHANGE EXCEL ────
+    // EXPORT BUREAUX DE CHANGE EXCEL
     public function exportBureauChangesExcel(Request $request)
     {
         $query = BureauChange::query()
@@ -156,11 +188,17 @@ class ExportController extends Controller
                 ->where('numero_ordre', 'like', "%{$search}%")
                 ->orWhere('designation', 'like', "%{$search}%")
                 ->orWhere('numero_agrement', 'like', "%{$search}%")
+                ->orWhere('adresse', 'like', "%{$search}%")
             );
         }
 
         if ($request->statut) {
             $query->where('statut', $request->statut);
+        }
+
+        // Nouveau : filtre par créateur
+        if ($request->createur_id) {
+            $query->where('created_by', $request->createur_id);
         }
 
         // Permission "consulter_bureau_change"

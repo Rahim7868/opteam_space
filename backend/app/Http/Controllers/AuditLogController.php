@@ -32,18 +32,22 @@ class AuditLogController extends Controller
     {
         $query = AuditLog::query()->with('user')->latest();
 
+        // Filtre par categorie
         if (request('category')) {
             $this->applyCategoryFilter($query, request('category'));
         }
 
-        if (request('action')) {
-            $query->where('action', request('action'));
+        // Filtre par date debut
+        if (request('date_debut')) {
+            $query->whereDate('created_at', '>=', request('date_debut'));
         }
 
-        if (request('entity_type')) {
-            $query->where('entity_type', request('entity_type'));
+        // Filtre par date fin
+        if (request('date_fin')) {
+            $query->whereDate('created_at', '<=', request('date_fin'));
         }
 
+        // Filtre par utilisateur
         if (request('user_id')) {
             $query->where('user_id', request('user_id'));
         }

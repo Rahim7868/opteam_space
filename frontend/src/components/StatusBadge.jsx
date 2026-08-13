@@ -11,8 +11,8 @@ const labels = {
   actif: 'Actif',
   inactif: 'Inactif',
   en_attente: 'En attente',
-  valide: 'Valide',
-  rejete: 'Rejete',
+  valide: 'Validé',
+  rejete: 'Rejeté',
   en_attente_validation_modification: 'En attente validation modification',
 }
 

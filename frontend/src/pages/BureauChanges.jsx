@@ -1,4 +1,4 @@
-import { Check, Edit, Eye, FileDown, FileSpreadsheet, MessageSquare, Plus, Search, Upload, X } from 'lucide-react'
+import { Check, Edit, Eye, FileDown, FileSpreadsheet, MessageSquare, Plus, Search, Upload, X, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
@@ -32,15 +32,20 @@ export default function BureauChanges() {
 
   const canApprouverModification = hasPermission('approuver_modification_bureau')
 
+  // Admin peut modifier les bureaux des autres
+  const isAdmin = user?.role?.libelle === 'Admin' || (hasPermission('creer_acteurs') && hasPermission('modifier_acteurs'))
+
   const [rows, setRows]       = useState([])
   const [meta, setMeta]       = useState(null)
   const [loading, setLoading] = useState(true)
-  const [filters, setFilters] = useState({ search: '', statut: '', page: 1 })
+  const defaultFilters = { search: '', statut: '', createur_id: '', page: 1 }
+  const [filters, setFilters] = useState(defaultFilters)
   const [form, setForm]       = useState(emptyForm)
   const [editing, setEditing] = useState(null)
   const [error, setError]     = useState('')
   const [success, setSuccess] = useState('')
   const originalForm          = useRef(null)
+  const [createurs, setCreateurs] = useState([])
 
   // Import Excel
   const [importModal, setImportModal]   = useState(false)
@@ -55,12 +60,24 @@ export default function BureauChanges() {
   const [reviewModal, setReviewModal]           = useState({ open: false, item: null })
   const [viewReasonModal, setViewReasonModal] = useState({ open: false, reason: '' })
 
+  // Charger la liste des créateurs
+  useEffect(() => {
+    api.get('/users', { params: { per_page: 1000 } })
+      .then(({ data }) => setCreateurs(data.data ?? []))
+      .catch(() => {})
+  }, [])
+
+  function resetFilters() {
+    setFilters(defaultFilters)
+  }
+
   // Exports
   function exportPdf() {
     if (!canExportPdf) return
     const params = new URLSearchParams()
     if (filters.search) params.append('search', filters.search)
     if (filters.statut) params.append('statut', filters.statut)
+    if (filters.createur_id) params.append('createur_id', filters.createur_id)
 
     api.get(`/export/bureau-changes-pdf?${params.toString()}`, {
       responseType: 'blob'
@@ -85,6 +102,7 @@ export default function BureauChanges() {
     const params = new URLSearchParams()
     if (filters.search) params.append('search', filters.search)
     if (filters.statut) params.append('statut', filters.statut)
+    if (filters.createur_id) params.append('createur_id', filters.createur_id)
 
     api.get(`/export/bureau-changes-excel?${params.toString()}`, {
       responseType: 'blob'
@@ -301,7 +319,7 @@ export default function BureauChanges() {
       key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          {canModify && (row.statut === 'en_attente' || row.statut === 'rejete') && row.createur?.id === user?.id && (
+          {canModify && (row.statut === 'en_attente' || row.statut === 'rejete') && (isAdmin || row.createur?.id === user?.id) && (
             <button onClick={() => startEdit(row)}
               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
               <Edit size={13} /> Modifier
@@ -384,21 +402,34 @@ export default function BureauChanges() {
       <SuccessAlert message={success} onDismiss={() => setSuccess('')} />
 
       {/* Filtres */}
-      <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px]">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="relative">
           <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
-          <input className="field pl-9"
-            placeholder="Rechercher par désignation ou agrément..."
+          <input className="field pl-9 w-full"
+            placeholder="Rechercher..."
             value={filters.search}
             onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })} />
         </div>
-        <select className="field" value={filters.statut}
+        <select className="field w-full" value={filters.statut}
           onChange={(e) => setFilters({ ...filters, statut: e.target.value, page: 1 })}>
-          <option value="">Tous statuts</option>
+          <option value="">Tout les status</option>
           <option value="en_attente">En attente</option>
           <option value="valide">Validés</option>
           <option value="rejete">Rejetés</option>
         </select>
+        <select className="field w-full" value={filters.createur_id}
+          onChange={(e) => setFilters({ ...filters, createur_id: e.target.value, page: 1 })}>
+          <option value="">Tous les créateurs</option>
+          {createurs.map((u) => (
+            <option key={u.id} value={u.id}>{u.nom}</option>
+          ))}
+        </select>
+        <button
+          onClick={resetFilters}
+          className="inline-flex h-10 items-center justify-center gap-1 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 transition"
+        >
+          <RefreshCw size={14} /> Réinitialiser
+        </button>
       </div>
 
       {/* Formulaire création/modification */}
@@ -468,7 +499,7 @@ export default function BureauChanges() {
               <label className="block text-sm font-medium text-slate-700">
                 Contact
               </label>
-              <input className="field mt-1" placeholder="Téléphone / Email"
+              <input className="field mt-1" placeholder="Votre numéro de telephone"
                 value={form.contact}
                 onChange={(e) => setForm({ ...form, contact: e.target.value })} />
             </div>
@@ -477,7 +508,7 @@ export default function BureauChanges() {
               <label className="block text-sm font-medium text-slate-700">
                 Adresse
               </label>
-              <input className="field mt-1" placeholder="Adresse complète"
+              <input className="field mt-1" placeholder="votre adresse"
                 value={form.adresse}
                 onChange={(e) => setForm({ ...form, adresse: e.target.value })} />
             </div>

@@ -30,6 +30,17 @@ class FixingController extends Controller
             $query->where('devise', request('devise'));
         }
 
+        if (request('createur_id')) {
+            $query->where('created_by', request('createur_id'));
+        }
+
+        if (request('date_debut')) {
+            $query->whereDate('date_fixing', '>=', request('date_debut'));
+        }
+        if (request('date_fin')) {
+            $query->whereDate('date_fixing', '<=', request('date_fin'));
+        }
+
         $fixings = $query->paginate(request('per_page', 10));
 
         $fixings->getCollection()->transform(function ($fixing) {
@@ -103,7 +114,10 @@ class FixingController extends Controller
             ], 403);
         }
 
-        if ($fixing->created_by !== auth()->id()) {
+        // Exception pour l'Admin : peut modifier les fixings des autres
+        $isAdmin = auth()->user()->hasPermission('creer_acteurs') && auth()->user()->hasPermission('modifier_acteurs');
+
+        if (!$isAdmin && $fixing->created_by !== auth()->id()) {
             return response()->json([
                 'message' => 'Vous ne pouvez modifier que vos propres fixings.'
             ], 403);
@@ -111,14 +125,12 @@ class FixingController extends Controller
 
         $data = $request->validated();
 
-        //  Si un fichier est uploadé, ajouter son URL dans les données proposées
         if ($request->hasFile('piece_jointe')) {
             $filePath = $request->file('piece_jointe')->store('fixings', 'public');
             $data['piece_jointe'] = $filePath;
             $data['piece_jointe_url'] = Storage::disk('public')->url($filePath);
         }
 
-        //  Modification proposée : statut_modification = 'en_attente_validation_modification'
         $fixing->update([
             'statut_modification' => 'en_attente_validation_modification',
             'modification_proposee' => $data,
@@ -153,8 +165,6 @@ class FixingController extends Controller
             ], 422);
         }
 
-        //  Approbation : appliquer les modifications, réinitialiser le statut_modification
-        //  Si l'élément était rejeté, il repasse en 'en_attente'
         $newStatut = $fixing->statut === 'rejete' ? 'en_attente' : $fixing->statut;
 
         $fixing->update([
@@ -247,7 +257,6 @@ class FixingController extends Controller
             ], 422);
         }
 
-        //  Rejet de la modification : réinitialiser le statut_modification, garder le statut inchangé
         $fixing->update([
             'statut_modification' => null,
             'modification_proposee' => null,

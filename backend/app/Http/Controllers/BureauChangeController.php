@@ -9,7 +9,7 @@ use App\Models\BureauChange;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Support\Facades\Storage; //
+use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 
 class BureauChangeController extends Controller
@@ -30,11 +30,16 @@ class BureauChangeController extends Controller
                 ->where('numero_ordre', 'like', "%{$search}%")
                 ->orWhere('designation', 'like', "%{$search}%")
                 ->orWhere('numero_agrement', 'like', "%{$search}%")
+                ->orWhere('adresse', 'like', "%{$search}%")
             );
         }
 
         if (request('statut')) {
             $query->where('statut', request('statut'));
+        }
+
+        if (request('createur_id')) {
+            $query->where('created_by', request('createur_id'));
         }
 
         return BureauChangeResource::collection(
@@ -74,7 +79,10 @@ class BureauChangeController extends Controller
             ], 403);
         }
 
-        if ($bureauChange->created_by !== auth()->id()) {
+        // Exception pour l'Admin : peut modifier les bureaux des autres
+        $isAdmin = auth()->user()->hasPermission('creer_acteurs') && auth()->user()->hasPermission('modifier_acteurs');
+
+        if (!$isAdmin && $bureauChange->created_by !== auth()->id()) {
             return response()->json([
                 'message' => 'Vous ne pouvez modifier que vos propres bureaux de change.'
             ], 403);

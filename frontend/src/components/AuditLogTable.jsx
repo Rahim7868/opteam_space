@@ -1,5 +1,5 @@
-import { Search } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { RefreshCw } from 'lucide-react'
 import api from '../api/client'
 import DataTable from './DataTable'
 import PageHeader from './PageHeader'
@@ -56,22 +56,31 @@ function userLabel(row) {
   const description = row.description || ''
   const match = description.match(/(?:Connexion|Déconnexion|Deconnexion) de (.+)$/i)
 
-  return match?.[1] || 'Système'
+  return match?.[1] || 'Systeme'
 }
 
 export default function AuditLogTable({
   category,
   title,
   subtitle,
-  actionPlaceholder = 'Filtrer par action',
-  entityPlaceholder = 'Filtrer par entité',
 }) {
   const [rows, setRows]       = useState([])
   const [meta, setMeta]       = useState(null)
   const [loading, setLoading] = useState(true)
-  const [filters, setFilters] = useState({
-    action: '', entity_type: '', page: 1,
-  })
+  const [users, setUsers]     = useState([])
+  const defaultFilters = { date_debut: '', date_fin: '', user_id: '', page: 1 }
+  const [filters, setFilters] = useState(defaultFilters)
+
+  // Charger les utilisateurs actifs
+  useEffect(() => {
+    api.get('/users', { params: { per_page: 1000 } })
+      .then(({ data }) => setUsers(data.data ?? []))
+      .catch(() => {})
+  }, [])
+
+  function resetFilters() {
+    setFilters(defaultFilters)
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -104,7 +113,7 @@ export default function AuditLogTable({
       render: (row) => <ActionBadge action={row.action} />,
     },
     {
-      key: 'entity_type', label: 'Entité',
+      key: 'entity_type', label: 'Entite',
       render: (row) => (
         <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-mono text-slate-600">
           {row.entity_type}
@@ -118,24 +127,55 @@ export default function AuditLogTable({
     <>
       <PageHeader title={title} subtitle={subtitle} />
 
-      <div className="mb-4 grid gap-3 md:grid-cols-2">
-        <div className="relative">
-          <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
+      {/* Filtres */}
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Date début
+          </label>
           <input
-            className="field pl-9"
-            placeholder={actionPlaceholder}
-            value={filters.action}
-            onChange={(e) => setFilters({ ...filters, action: e.target.value, page: 1 })}
+            type="date"
+            className="field w-full"
+            value={filters.date_debut || ''}
+            onChange={(e) => setFilters({ ...filters, date_debut: e.target.value, page: 1 })}
           />
         </div>
-        <div className="relative">
-          <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Date fin
+          </label>
           <input
-            className="field pl-9"
-            placeholder={entityPlaceholder}
-            value={filters.entity_type}
-            onChange={(e) => setFilters({ ...filters, entity_type: e.target.value, page: 1 })}
+            type="date"
+            className="field w-full"
+            value={filters.date_fin || ''}
+            onChange={(e) => setFilters({ ...filters, date_fin: e.target.value, page: 1 })}
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Utilisateur
+          </label>
+          <select
+            className="field w-full"
+            value={filters.user_id || ''}
+            onChange={(e) => setFilters({ ...filters, user_id: e.target.value, page: 1 })}
+          >
+            <option value="">Tous les utilisateurs</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>{u.nom}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-end">
+          <button
+            onClick={resetFilters}
+            className="inline-flex h-10 w-full items-center justify-center gap-1 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 transition"
+          >
+            <RefreshCw size={14} /> Réinitialiser
+          </button>
         </div>
       </div>
 

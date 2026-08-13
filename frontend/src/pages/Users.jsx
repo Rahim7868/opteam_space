@@ -1,4 +1,4 @@
-import { Edit, Eye, Plus, Search, Shield, ToggleLeft, ToggleRight } from 'lucide-react'
+import { Edit, Eye, Plus, Search, Shield, ToggleLeft, ToggleRight, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
@@ -48,7 +48,8 @@ export default function Users() {
   const [departements, setDepartements] = useState([])
   const [services, setServices]         = useState([])
 
-  const [filters, setFilters] = useState({ search: '', role_id: '', is_active: '', page: 1 })
+  const defaultFilters = { search: '', role_id: '', is_active: '', agence_id: '', page: 1 }
+  const [filters, setFilters] = useState(defaultFilters)
   const [form, setForm]       = useState(emptyForm)
   const [editing, setEditing] = useState(null)
   const [error, setError]     = useState('')
@@ -87,6 +88,10 @@ export default function Users() {
   }
 
   useEffect(load, [filters])
+
+  function resetFilters() {
+    setFilters(defaultFilters)
+  }
 
   async function handleAgenceChange(agenceId) {
     setForm(prev => ({
@@ -355,7 +360,7 @@ export default function Users() {
       key: 'is_active', label: 'Statut',
       render: (row) => <StatusBadge status={row.is_active ? 'actif' : 'inactif'} />,
     },
-    // 🔥 Actions avant Modification
+    // Actions avant Modification
     {
       key: 'actions', label: 'Actions',
       render: (row) => (
@@ -402,7 +407,7 @@ export default function Users() {
         </div>
       ),
     },
-    // 🔥 Modification après Actions
+    // Modification après Actions
     {
       key: 'statut_modification',
       label: 'Modification',
@@ -430,18 +435,18 @@ export default function Users() {
       <SuccessAlert message={success} onDismiss={() => setSuccess('')} />
 
       {/* Filtres */}
-      <div className="mb-4 grid gap-3 md:grid-cols-[1fr_180px_180px]">
+      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div className="relative">
           <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
           <input
-            className="field pl-9"
-            placeholder="Rechercher par nom ou email..."
+            className="field pl-9 w-full"
+            placeholder="Rechercher..."
             value={filters.search}
             onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
           />
         </div>
         <select
-          className="field"
+          className="field w-full"
           value={filters.role_id}
           onChange={(e) => setFilters({ ...filters, role_id: e.target.value, page: 1 })}
         >
@@ -449,7 +454,7 @@ export default function Users() {
           {roles.map((r) => <option key={r.id} value={r.id}>{r.libelle}</option>)}
         </select>
         <select
-          className="field"
+          className="field w-full"
           value={filters.is_active}
           onChange={(e) => setFilters({ ...filters, is_active: e.target.value, page: 1 })}
         >
@@ -457,6 +462,22 @@ export default function Users() {
           <option value="1">Actifs</option>
           <option value="0">Inactifs</option>
         </select>
+        <select
+          className="field w-full"
+          value={filters.agence_id}
+          onChange={(e) => setFilters({ ...filters, agence_id: e.target.value, page: 1 })}
+        >
+          <option value="">Toutes agences</option>
+          {agences.map((a) => (
+            <option key={a.id} value={a.id}>{a.libelle}</option>
+          ))}
+        </select>
+        <button
+          onClick={resetFilters}
+          className="inline-flex h-10 items-center justify-center gap-1 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 transition"
+        >
+          <RefreshCw size={14} /> Réinitialiser
+        </button>
       </div>
 
       {/* Formulaire */}

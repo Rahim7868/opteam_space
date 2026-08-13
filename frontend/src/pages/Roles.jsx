@@ -1,4 +1,4 @@
-import { Edit, Plus, Search, Trash2 } from 'lucide-react'
+import { Edit, Eye, Plus, Search, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
@@ -6,6 +6,7 @@ import DataTable from '../components/DataTable'
 import ErrorAlert from '../components/ErrorAlert'
 import SuccessAlert from '../components/SuccessAlert'
 import PageHeader from '../components/PageHeader'
+import ViewPermissionsModal from '../components/ViewPermissionsModal'
 
 const emptyForm = { libelle: '', permission_ids: [] }
 
@@ -21,6 +22,9 @@ export default function Roles() {
   const [search, setSearch]                 = useState('')
   const [confirmModal, setConfirmModal]     = useState({ open: false, id: null })
   const [submitConfirm, setSubmitConfirm] = useState(false)
+
+  // Modal pour afficher toutes les permissions
+  const [viewPermModal, setViewPermModal] = useState({ open: false, role: null })
 
   useEffect(() => {
     api.get('/permissions').then(({ data }) =>
@@ -100,19 +104,28 @@ export default function Roles() {
       render: (row) => {
         const perms = row.permissions ?? []
         if (perms.length === 0)
-          return <span className="text-slate-400 text-xs">N/A</span>
+          return <span className="text-slate-400 text-xs">Aucune permission</span>
+
+        const displayedPerms = perms.slice(0, 3)
+        const remainingCount = perms.length - 3
+
         return (
-          <div className="flex flex-wrap gap-1">
-            {perms.slice(0, 3).map((p) => (
-              <span key={p.id}
-                className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-700 ring-1 ring-teal-200">
+          <div className="flex flex-wrap items-center gap-1">
+            {displayedPerms.map((p) => (
+              <span
+                key={p.id}
+                className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-700 ring-1 ring-teal-200"
+              >
                 {p.libelle}
               </span>
             ))}
-            {perms.length > 3 && (
-              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
-                +{perms.length - 3}
-              </span>
+            {remainingCount > 0 && (
+              <button
+                onClick={() => setViewPermModal({ open: true, role: row })}
+                className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-blue-600 hover:bg-slate-200 hover:underline transition"
+              >
+                +{remainingCount}
+              </button>
             )}
           </div>
         )
@@ -251,6 +264,14 @@ export default function Roles() {
         confirmText={editing ? 'Enregistrer' : 'Confirmer'}
         onConfirm={async () => { setSubmitConfirm(false); await submit() }}
         onCancel={() => setSubmitConfirm(false)}
+      />
+
+      {/* Modal pour voir toutes les permissions */}
+      <ViewPermissionsModal
+        isOpen={viewPermModal.open}
+        onClose={() => setViewPermModal({ open: false, role: null })}
+        title={viewPermModal.role?.libelle || ''}
+        permissions={viewPermModal.role?.permissions || []}
       />
     </>
   )

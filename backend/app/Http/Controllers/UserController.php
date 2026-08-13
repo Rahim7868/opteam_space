@@ -25,11 +25,14 @@ class UserController extends Controller
             ->with('role', 'service', 'modificationProposeePar', 'modificationApprouveePar')
             ->latest();
 
+        // Recherche améliorée : nom, email, adresse, fonction
         if (request('search')) {
             $search = request('search');
             $query->where(fn($q) => $q
                 ->where('nom', 'like', "%{$search}%")
                 ->orWhere('email', 'like', "%{$search}%")
+                ->orWhere('adresse', 'like', "%{$search}%")
+                ->orWhere('fonction', 'like', "%{$search}%")
             );
         }
 
@@ -39,6 +42,13 @@ class UserController extends Controller
 
         if (request()->has('is_active')) {
             $query->where('is_active', request('is_active'));
+        }
+
+        // Nouveau : filtre par agence
+        if (request('agence_id')) {
+            $query->whereHas('service.departement.direction.agence', function($q) {
+                $q->where('id', request('agence_id'));
+            });
         }
 
         return UserResource::collection(
