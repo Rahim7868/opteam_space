@@ -165,6 +165,13 @@ class FixingController extends Controller
             ], 422);
         }
 
+        // Empêcher l'auto-approbation
+        if (auth()->id() === $fixing->modification_proposee_par) {
+            return response()->json([
+                'message' => 'Vous ne pouvez pas approuver vos propres modifications.'
+            ], 403);
+        }
+
         $newStatut = $fixing->statut === 'rejete' ? 'en_attente' : $fixing->statut;
 
         $fixing->update([
@@ -191,6 +198,10 @@ class FixingController extends Controller
 
     public function valider(Fixing $fixing): JsonResponse
     {
+        if (!auth()->user()->hasPermission('valider_fixing')) {
+            return response()->json(['message' => 'Permission refusée.'], 403);
+        }
+
         if (!$fixing->isEditable()) {
             return response()->json(['message' => 'Déjà traité.'], 403);
         }
@@ -214,6 +225,10 @@ class FixingController extends Controller
 
     public function rejeter(Fixing $fixing): JsonResponse
     {
+        if (!auth()->user()->hasPermission('valider_fixing')) {
+            return response()->json(['message' => 'Permission refusée.'], 403);
+        }
+
         request()->validate([
             'commentaire' => ['required', 'string', 'min:3'],
         ], [

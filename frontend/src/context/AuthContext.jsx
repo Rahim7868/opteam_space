@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import api from '../api/client'
 
 const AuthContext = createContext(null)
@@ -16,23 +16,49 @@ export function AuthProvider({ children }) {
   const [token, setToken]     = useState(() => localStorage.getItem('opteam_token'))
   const [user, setUser]       = useState(() => safeParseUser(localStorage.getItem('opteam_user')))
   const [loading, setLoading] = useState(!!token)
+  const isMountedRef = useRef(true)
+
+  // Écouter l'événement auth:logout émis par l'intercepteur axios
+  useEffect(() => {
+    function handleForceLogout() {
+      setToken(null)
+      setUser(null)
+      localStorage.removeItem('opteam_token')
+      localStorage.removeItem('opteam_user')
+    }
+
+    window.addEventListener('auth:logout', handleForceLogout)
+    return () => window.removeEventListener('auth:logout', handleForceLogout)
+  }, [])
 
   useEffect(() => {
+    isMountedRef.current = true
     if (!token) { setLoading(false); return }
 
-    api.get('/auth/me')
+    const controller = new AbortController()
+
+    api.get('/auth/me', { signal: controller.signal })
       .then(({ data }) => {
+        if (!isMountedRef.current) return
         const userData = data?.data ?? data
         setUser(userData)
         localStorage.setItem('opteam_user', JSON.stringify(userData))
       })
       .catch(() => {
+        if (!isMountedRef.current) return
         setToken(null)
         setUser(null)
         localStorage.removeItem('opteam_token')
         localStorage.removeItem('opteam_user')
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (isMountedRef.current) setLoading(false)
+      })
+
+    return () => {
+      isMountedRef.current = false
+      controller.abort()
+    }
   }, [token])
 
   const hasPermission = useCallback((permission) => {

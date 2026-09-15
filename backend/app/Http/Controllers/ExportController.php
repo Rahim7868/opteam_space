@@ -155,6 +155,14 @@ class ExportController extends Controller
             $query->where('created_by', $request->createur_id);
         }
 
+        // Nouveau : filtre par tranche de dates
+        if ($request->date_debut) {
+            $query->whereDate('created_at', '>=', $request->date_debut);
+        }
+        if ($request->date_fin) {
+            $query->whereDate('created_at', '<=', $request->date_fin);
+        }
+
         // Permission "consulter_bureau_change"
         if (!auth()->user()->hasPermission('consulter_bureau_change')) {
             $query->where('created_by', auth()->id());
@@ -199,6 +207,14 @@ class ExportController extends Controller
         // Nouveau : filtre par créateur
         if ($request->createur_id) {
             $query->where('created_by', $request->createur_id);
+        }
+
+        // Nouveau : filtre par tranche de dates
+        if ($request->date_debut) {
+            $query->whereDate('created_at', '>=', $request->date_debut);
+        }
+        if ($request->date_fin) {
+            $query->whereDate('created_at', '<=', $request->date_fin);
         }
 
         // Permission "consulter_bureau_change"

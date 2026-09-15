@@ -12,6 +12,10 @@ class PermissionController extends Controller
 {
     public function index(): AnonymousResourceCollection
     {
+        if (!auth()->user()->hasPermission('gerer_permissions')) {
+            abort(403, 'Permission refusée.');
+        }
+
         return PermissionResource::collection(
             Permission::all()
         );
@@ -19,6 +23,10 @@ class PermissionController extends Controller
 
     public function store(): PermissionResource
     {
+        if (!auth()->user()->hasPermission('gerer_permissions')) {
+            abort(403, 'Permission refusée.');
+        }
+
         request()->validate([
             'libelle' => ['required', 'string', 'unique:permissions,libelle'],
         ]);
@@ -32,11 +40,19 @@ class PermissionController extends Controller
 
     public function show(Permission $permission): PermissionResource
     {
+        if (!auth()->user()->hasPermission('gerer_permissions')) {
+            abort(403, 'Permission refusée.');
+        }
+
         return new PermissionResource($permission);
     }
 
     public function update(Permission $permission): PermissionResource
     {
+        if (!auth()->user()->hasPermission('gerer_permissions')) {
+            abort(403, 'Permission refusée.');
+        }
+
         request()->validate([
             'libelle' => ['required', 'string', 'unique:permissions,libelle,' . $permission->id],
         ]);
@@ -50,6 +66,10 @@ class PermissionController extends Controller
 
     public function destroy(Permission $permission): JsonResponse
     {
+        if (!auth()->user()->hasPermission('gerer_permissions')) {
+            abort(403, 'Permission refusée.');
+        }
+
         AuditLogger::forModel('permission_deleted', $permission, 'Suppression permission : ' . $permission->libelle);
 
         $permission->delete();

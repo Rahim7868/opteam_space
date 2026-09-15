@@ -10,10 +10,10 @@ class FixingResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
-        // 🔥 Récupérer modification_proposee (déjà casté en array dans le modèle)
+        //  Récupérer modification_proposee (déjà casté en array dans le modèle)
         $proposed = $this->modification_proposee;
 
-        // 🔥 Si c'est un tableau et qu'il contient un fichier, ajouter l'URL
+        //  Si c'est un tableau et qu'il contient un fichier, ajouter l'URL
         if (is_array($proposed) && isset($proposed['piece_jointe']) && $proposed['piece_jointe']) {
             $proposed['piece_jointe_url'] = Storage::disk('public')->url($proposed['piece_jointe']);
         }

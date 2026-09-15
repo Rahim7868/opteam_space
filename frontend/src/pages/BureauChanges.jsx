@@ -38,7 +38,7 @@ export default function BureauChanges() {
   const [rows, setRows]       = useState([])
   const [meta, setMeta]       = useState(null)
   const [loading, setLoading] = useState(true)
-  const defaultFilters = { search: '', statut: '', createur_id: '', page: 1 }
+  const defaultFilters = { search: '', statut: '', date_debut: '', date_fin: '', createur_id: '', page: 1 }
   const [filters, setFilters] = useState(defaultFilters)
   const [form, setForm]       = useState(emptyForm)
   const [editing, setEditing] = useState(null)
@@ -77,6 +77,8 @@ export default function BureauChanges() {
     const params = new URLSearchParams()
     if (filters.search) params.append('search', filters.search)
     if (filters.statut) params.append('statut', filters.statut)
+    if (filters.date_debut) params.append('date_debut', filters.date_debut)
+    if (filters.date_fin) params.append('date_fin', filters.date_fin)
     if (filters.createur_id) params.append('createur_id', filters.createur_id)
 
     api.get(`/export/bureau-changes-pdf?${params.toString()}`, {
@@ -102,6 +104,8 @@ export default function BureauChanges() {
     const params = new URLSearchParams()
     if (filters.search) params.append('search', filters.search)
     if (filters.statut) params.append('statut', filters.statut)
+    if (filters.date_debut) params.append('date_debut', filters.date_debut)
+    if (filters.date_fin) params.append('date_fin', filters.date_fin)
     if (filters.createur_id) params.append('createur_id', filters.createur_id)
 
     api.get(`/export/bureau-changes-excel?${params.toString()}`, {
@@ -228,8 +232,14 @@ export default function BureauChanges() {
       setImportResult(data)
       load()
     } catch (err) {
-      setError(getApiError(err))
-      setImportModal(false)
+      // If the backend returned structured import errors (422), show them in the modal
+      const responseData = err.response?.data
+      if (err.response?.status === 422 && responseData?.errors) {
+        setImportResult(responseData)
+      } else {
+        setError(getApiError(err))
+        setImportModal(false)
+      }
     } finally {
       setImporting(false)
     }
@@ -402,7 +412,7 @@ export default function BureauChanges() {
       <SuccessAlert message={success} onDismiss={() => setSuccess('')} />
 
       {/* Filtres */}
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
         <div className="relative">
           <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
           <input className="field pl-9 w-full"
@@ -417,6 +427,20 @@ export default function BureauChanges() {
           <option value="valide">Validés</option>
           <option value="rejete">Rejetés</option>
         </select>
+        <input
+          type="date"
+          className="field w-full"
+          placeholder="Date début"
+          value={filters.date_debut || ''}
+          onChange={(e) => setFilters({ ...filters, date_debut: e.target.value, page: 1 })}
+        />
+        <input
+          type="date"
+          className="field w-full"
+          placeholder="Date fin"
+          value={filters.date_fin || ''}
+          onChange={(e) => setFilters({ ...filters, date_fin: e.target.value, page: 1 })}
+        />
         <select className="field w-full" value={filters.createur_id}
           onChange={(e) => setFilters({ ...filters, createur_id: e.target.value, page: 1 })}>
           <option value="">Tous les créateurs</option>
@@ -650,7 +674,7 @@ export default function BureauChanges() {
               <form onSubmit={handleImport} className="mt-4">
                 <input
                   type="file"
-                  accept=".xlsx,.xls"
+                  accept=".xlsx,.xls,.csv"
                   className="field"
                   onChange={(e) => setImportFile(e.target.files[0])}
                   required

@@ -12,6 +12,10 @@ class RoleController extends Controller
 {
     public function index(): AnonymousResourceCollection
     {
+        if (!auth()->user()->hasPermission('gerer_roles')) {
+            abort(403, 'Permission refusée.');
+        }
+
         return RoleResource::collection(
             Role::with('permissions')->get()
         );
@@ -19,6 +23,10 @@ class RoleController extends Controller
 
     public function store(): RoleResource
     {
+        if (!auth()->user()->hasPermission('gerer_roles')) {
+            abort(403, 'Permission refusée.');
+        }
+
         request()->validate([
             'libelle'          => ['required', 'string', 'unique:roles,libelle'],
             'permission_ids'   => ['nullable', 'array'],
@@ -38,11 +46,19 @@ class RoleController extends Controller
 
     public function show(Role $role): RoleResource
     {
+        if (!auth()->user()->hasPermission('gerer_roles')) {
+            abort(403, 'Permission refusée.');
+        }
+
         return new RoleResource($role->load('permissions'));
     }
 
     public function update(Role $role): RoleResource
     {
+        if (!auth()->user()->hasPermission('gerer_roles')) {
+            abort(403, 'Permission refusée.');
+        }
+
         request()->validate([
             'libelle'          => ['required', 'string', 'unique:roles,libelle,' . $role->id],
             'permission_ids'   => ['nullable', 'array'],
@@ -59,6 +75,10 @@ class RoleController extends Controller
 
     public function destroy(Role $role): JsonResponse
     {
+        if (!auth()->user()->hasPermission('gerer_roles')) {
+            abort(403, 'Permission refusée.');
+        }
+
         // Vérifier qu'aucun utilisateur n'utilise ce rôle
         if ($role->users()->exists()) {
             return response()->json([

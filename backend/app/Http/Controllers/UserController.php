@@ -242,6 +242,11 @@ class UserController extends Controller
 
         $user->update(['is_active' => !$user->is_active]);
 
+        // Révoquer tous les tokens si le compte est désactivé
+        if (!$user->is_active) {
+            $user->tokens()->delete();
+        }
+
         $action = $user->is_active ? 'user_activated' : 'user_deactivated';
         $label  = $user->is_active ? 'Activation' : 'Désactivation';
 
@@ -288,5 +293,28 @@ class UserController extends Controller
         return response()->json([
             'message' => 'Permissions mises à jour.',
         ]);
+    }
+
+    public function destroy(User $user): JsonResponse
+    {
+        if (!auth()->user()->hasPermission('supprimer_acteurs')) {
+            abort(403, 'Permission refusée.');
+        }
+
+        // Empêcher la suppression de son propre compte
+        if ($user->id === auth()->id()) {
+            return response()->json([
+                'message' => 'Vous ne pouvez pas supprimer votre propre compte.'
+            ], 403);
+        }
+
+        // Révoquer tous les tokens avant suppression
+        $user->tokens()->delete();
+
+        AuditLogger::forModel('user_deleted', $user, 'Suppression de l\'acteur ' . $user->nom);
+
+        $user->delete();
+
+        return response()->json(['message' => 'Acteur supprimé.']);
     }
 }

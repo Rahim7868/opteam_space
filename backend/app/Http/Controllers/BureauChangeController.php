@@ -42,6 +42,14 @@ class BureauChangeController extends Controller
             $query->where('created_by', request('createur_id'));
         }
 
+        if (request('date_debut')) {
+            $query->whereDate('created_at', '>=', request('date_debut'));
+        }
+
+        if (request('date_fin')) {
+            $query->whereDate('created_at', '<=', request('date_fin'));
+        }
+
         return BureauChangeResource::collection(
             $query->paginate(request('per_page', 10))
         );
@@ -157,12 +165,29 @@ class BureauChangeController extends Controller
     public function import(): JsonResponse
     {
         request()->validate([
-            'fichier' => ['required', 'file', 'mimes:xlsx,xls', 'max:5120'],
+            'fichier' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:5120'],
         ]);
 
         $import = new BureauChangesImport(auth()->id());
 
-        Excel::import($import, request()->file('fichier'));
+        try {
+            Excel::import($import, request()->file('fichier'));
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+            $failures = collect($e->failures())->map(fn($f) =>
+                "Ligne {$f->row()} : " . implode(', ', $f->errors())
+            )->toArray();
+
+            return response()->json([
+                'message'  => 'Le fichier contient des erreurs de validation.',
+                'imported' => 0,
+                'skipped'  => count($failures),
+                'errors'   => $failures,
+            ], 422);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Erreur lors de la lecture du fichier : ' . $e->getMessage(),
+            ], 422);
+        }
 
         AuditLogger::log(
             'bureau_import',
@@ -181,6 +206,10 @@ class BureauChangeController extends Controller
 
     public function valider(BureauChange $bureauChange): JsonResponse
     {
+        if (!auth()->user()->hasPermission('valider_bureau_change')) {
+            return response()->json(['message' => 'Permission refusée.'], 403);
+        }
+
         if (!$bureauChange->isEditable()) {
             return response()->json(['message' => 'Déjà traité.'], 403);
         }
@@ -206,6 +235,10 @@ class BureauChangeController extends Controller
 
     public function rejeter(BureauChange $bureauChange): JsonResponse
     {
+        if (!auth()->user()->hasPermission('valider_bureau_change')) {
+            return response()->json(['message' => 'Permission refusée.'], 403);
+        }
+
         request()->validate([
             'commentaire' => ['required', 'string', 'min:3'],
         ], [

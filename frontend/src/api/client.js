@@ -26,10 +26,9 @@ api.interceptors.response.use(
     if (status === 401) {
       localStorage.removeItem('opteam_token')
       localStorage.removeItem('opteam_user')
-      // Redirige vers login si pas déjà dessus
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login'
-      }
+      // Émettre un événement pour déclencher la redirection via React Router
+      // au lieu de window.location.href qui provoque un full page reload
+      window.dispatchEvent(new Event('auth:logout'))
     }
 
     return Promise.reject(error)

@@ -15,22 +15,19 @@ class ForgotPasswordController extends Controller
     public function sendResetLinkEmail(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'email' => 'required|email|exists:users,email'
+            'email' => 'required|email'
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'message' => 'Email non trouvé dans notre système'
+                'message' => 'Veuillez fournir une adresse email valide.'
             ], 422);
         }
 
-        $response = Password::sendResetLink($request->only('email'));
+        // Message générique pour empêcher l'énumération d'utilisateurs
+        $genericMessage = 'Si cette adresse email existe dans notre système, un lien de réinitialisation vous a été envoyé.';
 
-        if ($response == Password::RESET_LINK_SENT) {
-            return response()->json([
-                'message' => 'Un lien de réinitialisation vous a été envoyé par email.'
-            ]);
-        }
+        $response = Password::sendResetLink($request->only('email'));
 
         if ($response == Password::RESET_THROTTLED) {
             return response()->json([
@@ -38,9 +35,10 @@ class ForgotPasswordController extends Controller
             ], 429);
         }
 
+        // Toujours retourner un succès pour ne pas révéler si l'email existe
         return response()->json([
-            'message' => 'Une erreur est survenue. Veuillez réessayer.'
-        ], 500);
+            'message' => $genericMessage
+        ]);
     }
 
     /**
@@ -49,7 +47,7 @@ class ForgotPasswordController extends Controller
     public function resetPassword(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'email'    => 'required|email|exists:users,email',
+            'email'    => 'required|email',
             'token'    => 'required',
             'password' => 'required|min:8|confirmed'
         ]);

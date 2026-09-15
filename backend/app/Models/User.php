@@ -120,21 +120,26 @@ class User extends Authenticatable
     /**
      * Toutes les permissions effectives de cet acteur :
      * (permissions du rôle ∪ permissions directes) − permissions retirées
+     * Résultat mis en cache pour éviter les requêtes N+1.
      */
     public function toutesLesPermissions()
     {
-        $permissionsRole = $this->role
-            ? $this->role->permissions->pluck('libelle')
-            : collect();
+        if (!isset($this->cachedPermissions)) {
+            $permissionsRole = $this->role
+                ? $this->role->permissions->pluck('libelle')
+                : collect();
 
-        $permissionsDirectes = $this->permissionsDirectes->pluck('libelle');
-        $permissionsRetirees = $this->permissionsRetirees->pluck('libelle');
+            $permissionsDirectes = $this->permissionsDirectes->pluck('libelle');
+            $permissionsRetirees = $this->permissionsRetirees->pluck('libelle');
 
-        return $permissionsRole
-            ->merge($permissionsDirectes)
-            ->unique()
-            ->diff($permissionsRetirees)
-            ->values();
+            $this->cachedPermissions = $permissionsRole
+                ->merge($permissionsDirectes)
+                ->unique()
+                ->diff($permissionsRetirees)
+                ->values();
+        }
+
+        return $this->cachedPermissions;
     }
 
     public function hasPermission(string $libelle): bool
