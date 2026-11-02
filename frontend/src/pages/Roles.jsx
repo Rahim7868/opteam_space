@@ -7,6 +7,7 @@ import ErrorAlert from '../components/ErrorAlert'
 import SuccessAlert from '../components/SuccessAlert'
 import PageHeader from '../components/PageHeader'
 import ViewPermissionsModal from '../components/ViewPermissionsModal'
+import DetailModal, { formatDate } from '../components/DetailModal'
 
 const emptyForm = { libelle: '', permission_ids: [] }
 
@@ -25,6 +26,7 @@ export default function Roles() {
 
   // Modal pour afficher toutes les permissions
   const [viewPermModal, setViewPermModal] = useState({ open: false, role: null })
+  const [detailModal, setDetailModal]     = useState({ open: false, item: null })
 
   useEffect(() => {
     api.get('/permissions').then(({ data }) =>
@@ -143,6 +145,12 @@ export default function Roles() {
       key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
+          <button
+            onClick={() => setDetailModal({ open: true, item: row })}
+            className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200"
+          >
+            <Eye size={13} /> Voir
+          </button>
           <button
             onClick={() => startEdit(row)}
             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
@@ -272,6 +280,32 @@ export default function Roles() {
         onClose={() => setViewPermModal({ open: false, role: null })}
         title={viewPermModal.role?.libelle || ''}
         permissions={viewPermModal.role?.permissions || []}
+      />
+
+      <DetailModal
+        open={detailModal.open}
+        onClose={() => setDetailModal({ open: false, item: null })}
+        title={detailModal.item ? detailModal.item.libelle : 'Rôle'}
+        fields={detailModal.item ? [
+          { label: 'Libellé', value: detailModal.item.libelle },
+          {
+            label: 'Permissions',
+            value: detailModal.item.permissions && detailModal.item.permissions.length > 0 ? (
+              <div className="flex flex-wrap gap-1 justify-end">
+                {detailModal.item.permissions.map((p) => (
+                  <span
+                    key={p.id}
+                    className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-700 ring-1 ring-teal-200"
+                  >
+                    {p.libelle}
+                  </span>
+                ))}
+              </div>
+            ) : 'Aucune permission',
+          },
+          { label: "Nombre d'acteurs", value: detailModal.item.users_count ?? '0' },
+          { label: 'Créé le', value: formatDate(detailModal.item.created_at) },
+        ] : []}
       />
     </>
   )

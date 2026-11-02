@@ -1,4 +1,4 @@
-import { Edit, Eye, Plus, Search, Shield, ToggleLeft, ToggleRight, RefreshCw } from 'lucide-react'
+import { Edit, Eye, Plus, Search, Shield, ToggleLeft, ToggleRight, RefreshCw, UserX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
@@ -9,6 +9,9 @@ import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
 import ModificationReviewModal from '../components/ModificationReviewModal'
 import { useAuth } from '../context/AuthContext'
+import DetailModal, { formatDate } from '../components/DetailModal'
+import DeactivateUserModal from '../components/DeactivateUserModal'
+import DeactivatedUsersModal from '../components/DeactivatedUsersModal'
 
 const USER_FIELD_LABELS = {
   nom: 'Nom',
@@ -65,11 +68,14 @@ export default function Users() {
 
   // Modal approbation modification
   const [reviewModal, setReviewModal] = useState({ open: false, item: null })
+  const [detailModal, setDetailModal] = useState({ open: false, item: null })
 
   // Confirmation modals
-  const [submitConfirm, setSubmitConfirm] = useState(false)
-  const [statusConfirm, setStatusConfirm] = useState({ open: false, user: null })
-  const [permsConfirm, setPermsConfirm]   = useState(false)
+  const [submitConfirm, setSubmitConfirm]           = useState(false)
+  const [deactivateModal, setDeactivateModal]       = useState({ open: false, user: null })
+  const [activateConfirm, setActivateConfirm]       = useState({ open: false, user: null })
+  const [deactivatedListOpen, setDeactivatedListOpen] = useState(false)
+  const [permsConfirm, setPermsConfirm]             = useState(false)
 
   useEffect(() => {
     api.get('/roles').then(({ data }) => setRoles(data.data ?? data))
@@ -182,10 +188,26 @@ export default function Users() {
     }
   }
 
-  async function executeToggleStatus(user) {
+  async function handleDeactivate(motif) {
+    const targetUser = deactivateModal.user
+    if (!targetUser) return
     try {
-      await api.patch(`/users/${user.id}/toggle-status`)
-      setSuccess(`Statut de l'acteur mis à jour.`)
+      await api.patch(`/users/${targetUser.id}/toggle-status`, { motif })
+      setSuccess(`Le compte de ${targetUser.nom} a été désactivé.`)
+      setDeactivateModal({ open: false, user: null })
+      load()
+    } catch (err) {
+      setError(getApiError(err))
+    }
+  }
+
+  async function handleActivate() {
+    const targetUser = activateConfirm.user
+    if (!targetUser) return
+    try {
+      await api.patch(`/users/${targetUser.id}/toggle-status`)
+      setSuccess(`Le compte de ${targetUser.nom} a été réactivé.`)
+      setActivateConfirm({ open: false, user: null })
       load()
     } catch (err) {
       setError(getApiError(err))
@@ -365,6 +387,12 @@ export default function Users() {
       key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
+          <button
+            onClick={() => setDetailModal({ open: true, item: row })}
+            className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200"
+          >
+            <Eye size={13} /> Voir
+          </button>
           {canModify && (
             <button
               onClick={() => startEdit(row)}
@@ -383,7 +411,13 @@ export default function Users() {
           )}
           {canDesactivate && (
             <button
-              onClick={() => setStatusConfirm({ open: true, user: row })}
+              onClick={() => {
+                if (row.is_active) {
+                  setDeactivateModal({ open: true, user: row })
+                } else {
+                  setActivateConfirm({ open: true, user: row })
+                }
+              }}
               className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold ring-1 transition ${
                 row.is_active
                   ? 'bg-rose-50 text-rose-700 ring-rose-200 hover:bg-rose-100'
@@ -480,6 +514,19 @@ export default function Users() {
         </button>
       </div>
 
+      {/* Bouton comptes désactivés si formulaire non affiché */}
+      {!(editing ? canModify : canCreate) && canDesactivate && (
+        <div className="mb-4 flex justify-end">
+          <button
+            type="button"
+            onClick={() => setDeactivatedListOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100 transition cursor-pointer"
+          >
+            <UserX size={14} /> Comptes désactivés
+          </button>
+        </div>
+      )}
+
       {/* Formulaire */}
       {(editing ? canModify : canCreate) && (
         <form
@@ -487,7 +534,7 @@ export default function Users() {
           className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
         >
           <h3 className="mb-3 text-sm font-bold text-slate-700">
-            {editing ? 'Modifier un acteur' : 'Ajouter un acteur'}
+            {editing ? 'Modifier un acteur' : 'Créer un acteur'}
           </h3>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             <div>
@@ -602,16 +649,28 @@ export default function Users() {
             </p>
           )}
 
-          <div className="mt-3 flex gap-2">
-            <button className="btn btn-primary">
-              <Plus size={16} />
-              {editing ? 'Enregistrer les modifications' : "Créer l'acteur"}
-            </button>
-            {editing && (
-              <button type="button"
-                onClick={resetForm}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
-                Annuler
+          <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
+            <div className="flex gap-2">
+              <button className="btn btn-primary">
+                <Plus size={16} />
+                {editing ? 'Enregistrer les modifications' : "Créer l'acteur"}
+              </button>
+              {editing && (
+                <button type="button"
+                  onClick={resetForm}
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                  Annuler
+                </button>
+              )}
+            </div>
+
+            {canDesactivate && (
+              <button
+                type="button"
+                onClick={() => setDeactivatedListOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100 transition cursor-pointer"
+              >
+                <UserX size={14} /> Comptes désactivés
               </button>
             )}
           </div>
@@ -695,19 +754,28 @@ export default function Users() {
         onCancel={() => setSubmitConfirm(false)}
       />
 
-      {/* Modal confirmation changement statut */}
+      {/* Modal désactivation compte avec motif */}
+      <DeactivateUserModal
+        open={deactivateModal.open}
+        user={deactivateModal.user}
+        onConfirm={handleDeactivate}
+        onCancel={() => setDeactivateModal({ open: false, user: null })}
+      />
+
+      {/* Modal confirmation activation compte */}
       <ConfirmModal
-        open={statusConfirm.open}
-        title={statusConfirm.user?.is_active ? 'Désactiver cet acteur ?' : 'Activer cet acteur ?'}
-        message={statusConfirm.user?.is_active ? 'Êtes-vous sûr de vouloir désactiver ce compte ?' : 'Êtes-vous sûr de vouloir activer ce compte ?'}
-        confirmText={statusConfirm.user?.is_active ? 'Désactiver' : 'Activer'}
-        danger={statusConfirm.user?.is_active}
-        onConfirm={async () => {
-          const userObj = statusConfirm.user
-          setStatusConfirm({ open: false, user: null })
-          await executeToggleStatus(userObj)
-        }}
-        onCancel={() => setStatusConfirm({ open: false, user: null })}
+        open={activateConfirm.open}
+        title="Activer ce compte ?"
+        message={`Êtes-vous sûr de vouloir réactiver le compte de ${activateConfirm.user?.nom ?? ''} ?`}
+        confirmText="Activer"
+        onConfirm={handleActivate}
+        onCancel={() => setActivateConfirm({ open: false, user: null })}
+      />
+
+      {/* Modal liste des comptes désactivés */}
+      <DeactivatedUsersModal
+        open={deactivatedListOpen}
+        onClose={() => setDeactivatedListOpen(false)}
       />
 
       {/* Modal confirmation permissions directes */}
@@ -739,6 +807,34 @@ export default function Users() {
           if (id) await rejeterModification(id)
         }}
         onClose={() => setReviewModal({ open: false, item: null })}
+      />
+
+      <DetailModal
+        open={detailModal.open}
+        onClose={() => setDetailModal({ open: false, item: null })}
+        title={detailModal.item ? `${detailModal.item.nom}` : 'Acteur'}
+        fields={detailModal.item ? [
+          { label: 'Nom', value: detailModal.item.nom },
+          { label: 'Email', value: detailModal.item.email },
+          { label: 'Adresse', value: detailModal.item.adresse },
+          { label: 'Fonction', value: detailModal.item.fonction },
+          { label: 'Rôle', value: detailModal.item.role?.libelle ?? '—' },
+          { label: 'Agence', value: detailModal.item.agence ?? '—' },
+          { label: 'Direction', value: detailModal.item.direction ?? '—' },
+          { label: 'Département', value: detailModal.item.departement ?? '—' },
+          { label: 'Service', value: detailModal.item.service?.libelle ?? '—' },
+          {
+            label: 'Statut',
+            value: <StatusBadge status={detailModal.item.is_active ? 'actif' : 'inactif'} />,
+          },
+          ...(!detailModal.item.is_active ? [
+            { label: 'Désactivé par', value: detailModal.item.desactive_par_nom ?? '—' },
+            { label: 'Désactivé le', value: formatDate(detailModal.item.desactive_le) },
+            { label: 'Motif de désactivation', value: detailModal.item.motif_desactivation ?? '—' },
+          ] : []),
+          { label: 'Créé le', value: formatDate(detailModal.item.created_at) },
+          { label: 'Mis à jour le', value: formatDate(detailModal.item.updated_at) },
+        ] : []}
       />
     </>
   )

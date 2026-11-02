@@ -16,6 +16,7 @@ import {
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import sfciLogo from '../assets/Sfcibanklogo.png'
 
 export default function AppLayout() {
   const { user, logout, hasPermission } = useAuth()
@@ -89,14 +90,21 @@ export default function AppLayout() {
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* Logo */}
-        <div className="flex h-16 shrink-0 items-center justify-between border-b border-slate-100 px-5">
-          <div>
-            <div className="text-lg font-black tracking-wide text-teal-800">
-              OPTEAM_SPACE
-            </div>
-            <div className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
-              {user?.role?.libelle ?? 'Utilisateur'}
+        {/* Logo Banque & Nom Application */}
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 p-5">
+          <div className="flex flex-col gap-2">
+            <img
+              src={sfciLogo}
+              alt="SFCI BANK"
+              className="h-9 w-auto object-contain"
+            />
+            <div>
+              <div className="text-sm font-black tracking-wide text-slate-900">
+                OPTEAM_SPACE
+              </div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                {user?.role?.libelle ?? 'Utilisateur'}
+              </div>
             </div>
           </div>
           <button

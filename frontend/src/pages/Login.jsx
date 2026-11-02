@@ -4,6 +4,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { getApiError } from '../api/client'
 import ErrorAlert from '../components/ErrorAlert'
 import { useAuth } from '../context/AuthContext'
+import sfciLogo from '../assets/Sfcibanklogo.png'
 
 export default function Login() {
   const { login, user } = useAuth()
@@ -52,19 +53,19 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-100 via-white to-slate-100 p-4">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-xl">
 
-        {/* Logo / Icône */}
-        <div className="flex justify-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-teal-600 shadow-lg">
-            <svg className="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-            </svg>
-          </div>
-        </div>
-
-        {/* Titre */}
-        <div className="mt-6 text-center">
-          <h1 className="text-3xl font-bold text-slate-950">OPTEAM_SPACE</h1>
-          <p className="mt-1 text-sm text-slate-500">Gestion des fixings de change</p>
+        {/* Logo SFCI BANK */}
+        <div className="flex flex-col items-center justify-center text-center">
+          <img
+            src={sfciLogo}
+            alt="SFCI BANK"
+            className="h-16 w-auto object-contain"
+          />
+          <h1 className="mt-4 text-2xl font-black tracking-tight text-slate-900">
+            OPTEAM_SPACE
+          </h1>
+          <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Gestion des fixings de change
+          </p>
         </div>
 
         {/* Séparateur */}

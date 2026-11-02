@@ -44,6 +44,10 @@ class UserResource extends JsonResource
             'service_id'           => $this->service_id,
             'is_active'            => $this->is_active,
             'must_change_password' => $this->must_change_password,
+            'motif_desactivation'  => $this->motif_desactivation,
+            'desactive_par'        => $this->desactive_par,
+            'desactive_par_nom'    => $this->whenLoaded('desactivePar', fn() => $this->desactivePar?->nom),
+            'desactive_le'         => $this->desactive_le,
 
             // Nouveaux champs pour les modifications
             'statut_modification'            => $this->statut_modification,

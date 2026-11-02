@@ -10,6 +10,7 @@ import StatusBadge from '../components/StatusBadge'
 import { useAuth } from '../context/AuthContext'
 import ModificationReviewModal, { BUREAU_FIELD_LABELS } from '../components/ModificationReviewModal'
 import { RejectReasonModal, ViewReasonModal } from '../components/RejectReasonModal'
+import DetailModal, { formatDate, formatDateOnly } from '../components/DetailModal'
 
 const emptyForm = {
   numero_ordre: '', designation: '', numero_agrement: '',
@@ -59,6 +60,7 @@ export default function BureauChanges() {
   const [rejectConfirm, setRejectConfirm]       = useState({ open: false, id: null })
   const [reviewModal, setReviewModal]           = useState({ open: false, item: null })
   const [viewReasonModal, setViewReasonModal] = useState({ open: false, reason: '' })
+  const [detailModal, setDetailModal]         = useState({ open: false, item: null })
 
   // Charger la liste des créateurs
   useEffect(() => {
@@ -329,6 +331,12 @@ export default function BureauChanges() {
       key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
+          <button
+            onClick={() => setDetailModal({ open: true, item: row })}
+            className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200"
+          >
+            <Eye size={13} /> Voir
+          </button>
           {canModify && (row.statut === 'en_attente' || row.statut === 'rejete') && (isAdmin || row.createur?.id === user?.id) && (
             <button onClick={() => startEdit(row)}
               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
@@ -709,6 +717,40 @@ export default function BureauChanges() {
           </div>
         </div>
       )}
+
+      <DetailModal
+        open={detailModal.open}
+        onClose={() => setDetailModal({ open: false, item: null })}
+        title={detailModal.item ? `${detailModal.item.designation}` : 'Bureau de change'}
+        fields={detailModal.item ? [
+          { label: 'N° Ordre', value: detailModal.item.numero_ordre },
+          { label: 'Désignation', value: detailModal.item.designation },
+          { label: 'N° Agrément', value: detailModal.item.numero_agrement },
+          {
+            label: "Date d'expiration agrément",
+            value: formatDateOnly(detailModal.item.date_expiration_agrement),
+          },
+          { label: 'Représentant légal', value: detailModal.item.representant_legal },
+          { label: 'Contact', value: detailModal.item.contact },
+          { label: 'Adresse', value: detailModal.item.adresse },
+          { label: 'Créé par', value: detailModal.item.createur?.nom ?? '—' },
+          {
+            label: 'Statut',
+            value: <StatusBadge status={detailModal.item.statut} />,
+          },
+          ...(detailModal.item.statut === 'valide'
+            ? [{ label: 'Validé par', value: detailModal.item.validateur?.nom ?? '—' }]
+            : []),
+          ...(detailModal.item.statut === 'rejete'
+            ? [{ label: 'Refusé par', value: detailModal.item.validateur?.nom ?? '—' }]
+            : []),
+          ...(detailModal.item.statut === 'rejete' && (detailModal.item.commentaire || detailModal.item.motif)
+            ? [{ label: 'Motif de rejet', value: detailModal.item.commentaire || detailModal.item.motif }]
+            : []),
+          { label: 'Créé le', value: formatDate(detailModal.item.created_at) },
+          { label: 'Mis à jour le', value: formatDate(detailModal.item.updated_at) },
+        ] : []}
+      />
     </>
   )
 }

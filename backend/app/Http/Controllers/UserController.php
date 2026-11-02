@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Models\Role;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Hash;
 
@@ -22,7 +23,7 @@ class UserController extends Controller
         }
 
         $query = User::query()
-            ->with('role', 'service', 'modificationProposeePar', 'modificationApprouveePar')
+            ->with('role', 'service', 'modificationProposeePar', 'modificationApprouveePar', 'desactivePar')
             ->latest();
 
         // Recherche améliorée : nom, email, adresse, fonction
@@ -233,29 +234,93 @@ class UserController extends Controller
         ]);
     }
 
-    public function toggleStatus(User $user): JsonResponse
+    public function desactives(): JsonResponse
+    {
+        // Seuls les utilisateurs ayant la permission de désactiver un compte peuvent voir la liste
+        if (!auth()->user()->hasPermission('desactiver_acteurs')) {
+            abort(403, 'Permission refusée. Vous devez avoir la permission de désactiver un compte.');
+        }
+
+        $users = User::query()
+            ->where('is_active', false)
+            ->with(['desactivePar', 'role', 'service.departement.direction.agence'])
+            ->latest('desactive_le')
+            ->get();
+
+        return response()->json([
+            'data' => $users->map(fn($u) => [
+                'id'                  => $u->id,
+                'nom'                 => $u->nom,
+                'email'               => $u->email,
+                'fonction'            => $u->fonction,
+                'role'                => $u->role?->libelle ?? '—',
+                'service'             => $u->service?->libelle ?? '—',
+                'agence'              => $u->service?->departement?->direction?->agence?->libelle ?? '—',
+                'desactive_par'       => $u->desactivePar?->nom ?? '—',
+                'desactive_le'        => $u->desactive_le ? $u->desactive_le->toIso8601String() : null,
+                'motif_desactivation' => $u->motif_desactivation ?? '—',
+            ]),
+        ]);
+    }
+
+    public function toggleStatus(Request $request, User $user): JsonResponse
     {
         // Permission de désactiver un acteur
         if (!auth()->user()->hasPermission('desactiver_acteurs')) {
             abort(403, 'Permission refusée.');
         }
 
-        $user->update(['is_active' => !$user->is_active]);
+        $willBeActive = !$user->is_active;
 
-        // Révoquer tous les tokens si le compte est désactivé
-        if (!$user->is_active) {
+        if (!$willBeActive) {
+            $request->validate([
+                'motif' => ['required', 'string', 'max:1000'],
+            ], [
+                'motif.required' => 'Le motif de désactivation est obligatoire.',
+            ]);
+
+            $user->update([
+                'is_active'           => false,
+                'motif_desactivation' => $request->input('motif'),
+                'desactive_par'       => auth()->id(),
+                'desactive_le'        => now(),
+            ]);
+
+            // Révoquer tous les tokens si le compte est désactivé
             $user->tokens()->delete();
+
+            AuditLogger::forModel(
+                'user_deactivated',
+                $user,
+                'Désactivation du compte de ' . $user->nom . ' (Motif: ' . $request->input('motif') . ')'
+            );
+
+            return response()->json([
+                'message'             => 'Ce Compte a été désactivé.',
+                'is_active'           => false,
+                'motif_desactivation' => $user->motif_desactivation,
+                'desactive_par_nom'   => auth()->user()->nom,
+                'desactive_le'        => $user->desactive_le,
+            ]);
+        } else {
+            $user->update([
+                'is_active'           => true,
+                'motif_desactivation' => null,
+                'desactive_par'       => null,
+                'desactive_le'        => null,
+            ]);
+
+            AuditLogger::forModel(
+                'user_activated',
+                $user,
+                'Activation du compte de ' . $user->nom
+            );
+
+            return response()->json([
+                'message'   => 'Compte activé.',
+                'is_active' => true,
+            ]);
         }
-
-        $action = $user->is_active ? 'user_activated' : 'user_deactivated';
-        $label  = $user->is_active ? 'Activation' : 'Désactivation';
-
-        AuditLogger::forModel($action, $user, $label . ' du compte de ' . $user->nom);
-
-        return response()->json([
-            'message'   => $user->is_active ? 'Compte activé.' : 'Ce Compte a été désactivé.',
-            'is_active' => $user->is_active,
-        ]);
     }
 
     public function assignPermissions(User $user): JsonResponse

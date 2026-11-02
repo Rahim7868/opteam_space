@@ -27,6 +27,7 @@ class User extends Authenticatable
         'nom', 'email', 'password', 'adresse', 'fonction',
         'service_id', 'role_id',
         'is_active', 'must_change_password',
+        'motif_desactivation', 'desactive_par', 'desactive_le',
         'statut_modification', 'modification_proposee',
         'modification_proposee_par', 'modification_approuvee_par',
         'modification_approuvee_at',
@@ -41,6 +42,7 @@ class User extends Authenticatable
             'is_active'             => 'boolean',
             'must_change_password'  => 'boolean',
             'modification_proposee' => 'array',
+            'desactive_le'          => 'datetime',
         ];
     }
 
@@ -64,6 +66,11 @@ class User extends Authenticatable
     public function modificationApprouveePar(): BelongsTo
     {
         return $this->belongsTo(User::class, 'modification_approuvee_par');
+    }
+
+    public function desactivePar(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'desactive_par');
     }
 
     /** Permissions individuelles attribuées manuellement */

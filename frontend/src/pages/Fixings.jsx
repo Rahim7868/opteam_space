@@ -11,6 +11,7 @@ import StatusBadge from '../components/StatusBadge'
 import { useAuth } from '../context/AuthContext'
 import ModificationReviewModal, { FIXING_FIELD_LABELS } from '../components/ModificationReviewModal'
 import { RejectReasonModal, ViewReasonModal } from '../components/RejectReasonModal'
+import DetailModal, { formatDate, formatDateOnly } from '../components/DetailModal'
 
 const emptyForm = {
   date_fixing: new Date().toISOString().slice(0, 10),
@@ -66,6 +67,7 @@ export default function Fixings() {
   const [duplicateModal, setDuplicateModal]    = useState(false)
   const [reviewModal, setReviewModal]           = useState({ open: false, item: null })
   const [viewReasonModal, setViewReasonModal] = useState({ open: false, reason: '' })
+  const [detailModal, setDetailModal]         = useState({ open: false, item: null })
 
   // Charger la liste des créateurs
   useEffect(() => {
@@ -314,6 +316,12 @@ export default function Fixings() {
       key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
+          <button
+            onClick={() => setDetailModal({ open: true, item: row })}
+            className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200"
+          >
+            <Eye size={13} /> Voir
+          </button>
           {canModify && (row.statut === 'en_attente' || row.statut === 'rejete') && (isAdmin || row.createur?.id === user?.id) && (
             <button
               onClick={() => {
@@ -598,6 +606,52 @@ export default function Fixings() {
           </div>
         </div>
       )}
+
+      <DetailModal
+        open={detailModal.open}
+        onClose={() => setDetailModal({ open: false, item: null })}
+        title={detailModal.item ? `${detailModal.item.devise} — ${formatDateOnly(detailModal.item.date_fixing)}` : 'Fixing'}
+        fields={detailModal.item ? [
+          { label: 'Date du fixing', value: formatDateOnly(detailModal.item.date_fixing) },
+          { label: 'Devise', value: detailModal.item.devise },
+          { label: 'Cours', value: formatAmount(detailModal.item.cours) },
+          {
+            label: 'Variation',
+            value: detailModal.item.variation != null
+              ? `${Number(detailModal.item.variation) > 0 ? '+' : ''}${formatAmount(detailModal.item.variation)}`
+              : '—',
+          },
+          { label: 'Créateur', value: detailModal.item.createur?.nom ?? '—' },
+          {
+            label: 'Statut',
+            value: <StatusBadge status={detailModal.item.statut} />,
+          },
+          ...(detailModal.item.statut === 'valide'
+            ? [{ label: 'Validé par', value: detailModal.item.validateur?.nom ?? '—' }]
+            : []),
+          ...(detailModal.item.statut === 'rejete'
+            ? [{ label: 'Refusé par', value: detailModal.item.validateur?.nom ?? '—' }]
+            : []),
+          ...(detailModal.item.statut === 'rejete' && detailModal.item.commentaire
+            ? [{ label: 'Motif de rejet', value: detailModal.item.commentaire }]
+            : []),
+          {
+            label: 'Pièce jointe',
+            value: detailModal.item.piece_jointe_url ? (
+              <a
+                href={detailModal.item.piece_jointe_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-teal-600 hover:underline text-xs font-semibold"
+              >
+                Voir la pièce jointe
+              </a>
+            ) : '—',
+          },
+          { label: 'Créé le', value: formatDate(detailModal.item.created_at) },
+          { label: 'Mis à jour le', value: formatDate(detailModal.item.updated_at) },
+        ] : []}
+      />
     </>
   )
 }

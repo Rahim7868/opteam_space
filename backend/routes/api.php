@@ -67,6 +67,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('services',     ServiceController::class);
 
     // ── Gestion acteurs ────────────────────────────────────────
+    Route::get('/users/desactives',             [UserController::class, 'desactives']);
     Route::apiResource('users', UserController::class);
     Route::patch('/users/{user}/toggle-status', [UserController::class, 'toggleStatus']);
     Route::post('/users/{user}/permissions',    [UserController::class, 'assignPermissions']);

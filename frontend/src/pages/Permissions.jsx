@@ -1,4 +1,4 @@
-import { Edit, Plus, Search, Trash2 } from 'lucide-react'
+import { Edit, Eye, Plus, Search, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
@@ -6,6 +6,7 @@ import DataTable from '../components/DataTable'
 import ErrorAlert from '../components/ErrorAlert'
 import SuccessAlert from '../components/SuccessAlert'
 import PageHeader from '../components/PageHeader'
+import DetailModal, { formatDate } from '../components/DetailModal'
 
 const emptyForm = { libelle: '' }
 
@@ -20,6 +21,7 @@ export default function Permissions() {
   const [search, setSearch]   = useState('')
   const [confirmModal, setConfirmModal] = useState({ open: false, id: null })
   const [submitConfirm, setSubmitConfirm] = useState(false)
+  const [detailModal, setDetailModal]     = useState({ open: false, item: null })
 
   function load() {
     setLoading(true)
@@ -70,6 +72,12 @@ export default function Permissions() {
       key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
+          <button
+            onClick={() => setDetailModal({ open: true, item: row })}
+            className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200"
+          >
+            <Eye size={13} /> Voir
+          </button>
           <button
             onClick={() => { setEditing(row.id); setForm({ libelle: row.libelle }); originalForm.current = { libelle: row.libelle } }}
             className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
@@ -166,6 +174,16 @@ export default function Permissions() {
         confirmText={editing ? 'Enregistrer' : 'Confirmer'}
         onConfirm={async () => { setSubmitConfirm(false); await submit() }}
         onCancel={() => setSubmitConfirm(false)}
+      />
+
+      <DetailModal
+        open={detailModal.open}
+        onClose={() => setDetailModal({ open: false, item: null })}
+        title={detailModal.item ? detailModal.item.libelle : 'Permission'}
+        fields={detailModal.item ? [
+          { label: 'Libellé', value: detailModal.item.libelle },
+          { label: 'Créé le', value: formatDate(detailModal.item.created_at) },
+        ] : []}
       />
     </>
   )
