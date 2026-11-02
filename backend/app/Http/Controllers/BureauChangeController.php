@@ -303,4 +303,88 @@ class BureauChangeController extends Controller
             'bureauChange' => new BureauChangeResource($bureauChange->load('createur', 'validateur'))
         ]);
     }
+
+    // ── ARCHIVAGE : archiver (route DELETE /bureau-changes/{id}) ──
+    public function destroy(BureauChange $bureauChange): JsonResponse
+    {
+        if (!auth()->user()->hasPermission('archiver_bureau_change')) {
+            return response()->json(['message' => 'Permission refusée.'], 403);
+        }
+
+        if ($bureauChange->statut_modification === 'en_attente_validation_modification') {
+            return response()->json([
+                'message' => "Impossible d'archiver : une modification est en attente d'approbation."
+            ], 422);
+        }
+
+        AuditLogger::forModel(
+            'bureau_archived',
+            $bureauChange,
+            'Archivage bureau de change : ' . $bureauChange->designation
+        );
+
+        $bureauChange->delete();
+
+        return response()->json(['message' => 'Bureau de change archivé.']);
+    }
+
+    // ── ARCHIVAGE : liste des archives ──
+    public function archives(): AnonymousResourceCollection|JsonResponse
+    {
+        $user = auth()->user();
+
+        if (
+            !$user->hasPermission('archiver_bureau_change')
+            && !$user->hasPermission('restaurer_bureau_change')
+            && !$user->hasPermission('supprimer_definitivement_bureau_change')
+        ) {
+            return response()->json(['message' => 'Permission refusée.'], 403);
+        }
+
+        return BureauChangeResource::collection(
+            BureauChange::onlyTrashed()
+                ->with('createur', 'validateur')
+                ->latest('deleted_at')
+                ->get()
+        );
+    }
+
+    // ── ARCHIVAGE : restaurer ──
+    public function restore(int $id): JsonResponse
+    {
+        if (!auth()->user()->hasPermission('restaurer_bureau_change')) {
+            return response()->json(['message' => 'Permission refusée.'], 403);
+        }
+
+        $bureauChange = BureauChange::onlyTrashed()->findOrFail($id);
+        $bureauChange->restore();
+
+        AuditLogger::forModel(
+            'bureau_restored',
+            $bureauChange,
+            'Restauration bureau de change : ' . $bureauChange->designation
+        );
+
+        return response()->json(['message' => 'Bureau de change restauré.']);
+    }
+
+    // ── ARCHIVAGE : supprimer définitivement (uniquement depuis les archives) ──
+    public function forceDelete(int $id): JsonResponse
+    {
+        if (!auth()->user()->hasPermission('supprimer_definitivement_bureau_change')) {
+            return response()->json(['message' => 'Permission refusée.'], 403);
+        }
+
+        $bureauChange = BureauChange::onlyTrashed()->findOrFail($id);
+
+        AuditLogger::forModel(
+            'bureau_force_deleted',
+            $bureauChange,
+            'Suppression définitive bureau de change : ' . $bureauChange->designation
+        );
+
+        $bureauChange->forceDelete();
+
+        return response()->json(['message' => 'Bureau de change supprimé définitivement.']);
+    }
 }

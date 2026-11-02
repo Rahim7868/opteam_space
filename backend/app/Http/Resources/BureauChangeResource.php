@@ -23,8 +23,8 @@ class BureauChangeResource extends JsonResource
             'numero_ordre'       => $this->numero_ordre,
             'designation'        => $this->designation,
             'numero_agrement'    => $this->numero_agrement,
-            'date_expiration_agrement' => $this->date_expiration_agrement, // 🔥 AJOUT
-            'statut_expiration'  => $this->statut_expiration, // 🔥 AJOUT
+            'date_expiration_agrement' => $this->date_expiration_agrement,
+            'statut_expiration'  => $this->statut_expiration,
             'representant_legal' => $this->representant_legal,
             'contact'            => $this->contact,
             'adresse'            => $this->adresse,
@@ -50,6 +50,9 @@ class BureauChangeResource extends JsonResource
             ]),
 
             'is_editable' => $this->isEditable(),
+
+            // ARCHIVAGE : date d'archivage (null si le bureau n'est pas archivé)
+            'deleted_at' => $this->deleted_at?->toISOString(),
 
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),

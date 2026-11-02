@@ -1,6 +1,7 @@
-import { Check, Edit, Eye, FileDown, FileSpreadsheet, MessageSquare, Plus, Search, Upload, X, RefreshCw } from 'lucide-react'
+import { Archive, Check, Edit, Eye, FileDown, FileSpreadsheet, MessageSquare, Plus, Search, Upload, X, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
+import ArchiveModal from '../components/ArchiveModal'
 import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
 import ErrorAlert from '../components/ErrorAlert'
@@ -33,6 +34,12 @@ export default function BureauChanges() {
 
   const canApprouverModification = hasPermission('approuver_modification_bureau')
 
+  // ARCHIVAGE : permissions
+  const canArchive     = hasPermission('archiver_bureau_change')
+  const canRestore     = hasPermission('restaurer_bureau_change')
+  const canForceDelete = hasPermission('supprimer_definitivement_bureau_change')
+  const canSeeArchives = canArchive || canRestore || canForceDelete
+
   // Admin peut modifier les bureaux des autres
   const isAdmin = user?.role?.libelle === 'Admin' || (hasPermission('creer_acteurs') && hasPermission('modifier_acteurs'))
 
@@ -61,6 +68,12 @@ export default function BureauChanges() {
   const [reviewModal, setReviewModal]           = useState({ open: false, item: null })
   const [viewReasonModal, setViewReasonModal] = useState({ open: false, reason: '' })
   const [detailModal, setDetailModal]         = useState({ open: false, item: null })
+
+  // ARCHIVAGE : états
+  const [archiveConfirm, setArchiveConfirm]   = useState({ open: false, id: null })
+  const [archiveOpen, setArchiveOpen]         = useState(false)
+  const [archives, setArchives]               = useState([])
+  const [archivesLoading, setArchivesLoading] = useState(false)
 
   // Charger la liste des créateurs
   useEffect(() => {
@@ -140,6 +153,44 @@ export default function BureauChanges() {
   }
 
   useEffect(load, [filters])
+
+  // ARCHIVAGE : fonctions
+  function loadArchives() {
+    setArchivesLoading(true)
+    api.get('/bureau-changes/archives')
+      .then(({ data }) => setArchives(data.data ?? data))
+      .catch((err) => setError(getApiError(err)))
+      .finally(() => setArchivesLoading(false))
+  }
+
+  function openArchives() {
+    setArchiveOpen(true)
+    loadArchives()
+  }
+
+  async function archiver(id) {
+    setError(''); setSuccess('')
+    try {
+      const { data } = await api.delete(`/bureau-changes/${id}`)
+      setSuccess(data?.message || 'Bureau de change archivé.')
+      load()
+    } catch (err) {
+      setError(getApiError(err))
+    }
+  }
+
+  async function restaurerBureau(row) {
+    const { data } = await api.post(`/bureau-changes/${row.id}/restaurer`)
+    load()
+    loadArchives()
+    return data.message
+  }
+
+  async function supprimerDefinitivement(row) {
+    const { data } = await api.delete(`/bureau-changes/${row.id}/definitif`)
+    loadArchives()
+    return data.message
+  }
 
   // CRUD
   async function submit() {
@@ -363,8 +414,36 @@ export default function BureauChanges() {
               <Eye size={13} /> Voir les modifications
             </button>
           )}
+          {/* ARCHIVAGE : bouton Archiver (masqué si une modification est en attente) */}
+          {canArchive && row.statut_modification !== 'en_attente_validation_modification' && (
+            <button
+              onClick={() => setArchiveConfirm({ open: true, id: row.id })}
+              className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200 hover:bg-amber-100"
+            >
+              <Archive size={13} /> Archiver
+            </button>
+          )}
         </div>
       ),
+    },
+  ]
+
+  // ARCHIVAGE : colonnes du modal Archives
+  const archiveColumns = [
+    { key: 'numero_ordre',    label: 'N° Ordre' },
+    { key: 'designation',     label: 'Désignation' },
+    { key: 'numero_agrement', label: 'N° Agrément' },
+    {
+      key: 'createur', label: 'Créé par',
+      render: (row) => row.createur?.nom ?? <span className="text-slate-400">N/A</span>,
+    },
+    {
+      key: 'statut', label: 'Statut',
+      render: (row) => <StatusBadge status={row.statut} />,
+    },
+    {
+      key: 'deleted_at', label: 'Archivé le',
+      render: (row) => formatDate(row.deleted_at),
     },
   ]
 
@@ -412,6 +491,15 @@ export default function BureauChanges() {
             >
               <Upload size={16} /> Importer Excel
             </button>
+            {/* ARCHIVAGE : bouton Archives */}
+            {canSeeArchives && (
+              <button
+                onClick={openArchives}
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:bg-slate-800 hover:shadow-md"
+              >
+                <Archive size={16} /> Archives
+              </button>
+            )}
           </div>
         }
       />
@@ -592,6 +680,20 @@ export default function BureauChanges() {
         onCancel={() => setValidateConfirm({ open: false, id: null })}
       />
 
+      {/* ARCHIVAGE : confirmation avant d'archiver */}
+      <ConfirmModal
+        open={archiveConfirm.open}
+        title="Confirmer l'archivage ?"
+        message="Ce bureau de change sera déplacé dans les archives. Vous pourrez le restaurer à tout moment."
+        confirmText="Archiver"
+        onConfirm={async () => {
+          const id = archiveConfirm.id
+          setArchiveConfirm({ open: false, id: null })
+          await archiver(id)
+        }}
+        onCancel={() => setArchiveConfirm({ open: false, id: null })}
+      />
+
       <RejectReasonModal
         open={rejectConfirm.open}
         title="Refuser ce bureau de change"
@@ -626,6 +728,21 @@ export default function BureauChanges() {
           if (id) await rejeterModification(id)
         }}
         onClose={() => setReviewModal({ open: false, item: null })}
+      />
+
+      {/* ARCHIVAGE : modal des archives */}
+      <ArchiveModal
+        open={archiveOpen}
+        onClose={() => setArchiveOpen(false)}
+        title="Bureaux de change archivés"
+        itemLabel="ce bureau de change"
+        columns={archiveColumns}
+        rows={archives}
+        loading={archivesLoading}
+        canRestore={canRestore}
+        canForceDelete={canForceDelete}
+        onRestore={restaurerBureau}
+        onForceDelete={supprimerDefinitivement}
       />
 
       {/* Modal Import Excel */}

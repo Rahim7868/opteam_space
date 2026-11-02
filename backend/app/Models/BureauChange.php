@@ -3,12 +3,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class BureauChange extends Model
 {
+    use SoftDeletes;
+
     protected $fillable = [
         'numero_ordre', 'designation', 'numero_agrement',
-        'date_expiration_agrement', // 
+        'date_expiration_agrement',
         'representant_legal', 'contact', 'adresse',
         'statut', 'commentaire',
         'created_by', 'validated_by',
@@ -21,11 +24,11 @@ class BureauChange extends Model
     {
         return [
             'modification_proposee' => 'array',
-            'date_expiration_agrement' => 'date', // 🔥 AJOUT
+            'date_expiration_agrement' => 'date',
         ];
     }
 
-    //  NOUVEAU : Calcul du statut d'expiration
+    // Calcul du statut d'expiration
     public function getStatutExpirationAttribute()
     {
         if (!$this->date_expiration_agrement) {

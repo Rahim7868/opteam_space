@@ -82,7 +82,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/fixings/{fixing}/rejeter', [FixingController::class, 'rejeter']);
 
     // ── Bureaux de change ──────────────────────────────────────
-    Route::post('/bureau-changes/import', [BureauChangeController::class, 'import']);
+    // Les routes fixes (archives, import, restaurer, definitif) doivent
+    // rester AVANT apiResource, sinon Laravel les prendrait pour un identifiant.
+    Route::get('/bureau-changes/archives',          [BureauChangeController::class, 'archives']);
+    Route::post('/bureau-changes/import',           [BureauChangeController::class, 'import']);
+    Route::post('/bureau-changes/{id}/restaurer',   [BureauChangeController::class, 'restore']);
+    Route::delete('/bureau-changes/{id}/definitif', [BureauChangeController::class, 'forceDelete']);
     Route::apiResource('bureau-changes', BureauChangeController::class);
     Route::post('/bureau-changes/{bureauChange}/valider', [BureauChangeController::class, 'valider']);
     Route::post('/bureau-changes/{bureauChange}/rejeter', [BureauChangeController::class, 'rejeter']);

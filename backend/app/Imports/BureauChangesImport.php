@@ -136,10 +136,13 @@ class BureauChangesImport implements ToCollection, WithHeadingRow
                 continue;
             }
 
-            // 4. Check for existing agrement number in DB
+            // 4. Check for existing agrement number in DB (y compris les archives)
             $numAgrement = trim((string) $data['numero_agrement']);
-            if (BureauChange::where('numero_agrement', $numAgrement)->exists()) {
-                $this->errors[] = "Ligne {$ligne} : N° agrément '{$numAgrement}' déjà existant dans la base de données — ignoré.";
+            $existing = BureauChange::withTrashed()->where('numero_agrement', $numAgrement)->first();
+            if ($existing) {
+                $this->errors[] = $existing->trashed()
+                    ? "Ligne {$ligne} : N° agrément '{$numAgrement}' présent dans les archives — ignoré (restaurez-le depuis les archives)."
+                    : "Ligne {$ligne} : N° agrément '{$numAgrement}' déjà existant dans la base de données — ignoré.";
                 $this->skipped++;
                 continue;
             }
