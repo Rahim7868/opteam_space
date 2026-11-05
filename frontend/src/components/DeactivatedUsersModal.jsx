@@ -84,7 +84,7 @@ export default function DeactivatedUsersModal({ open, onClose }) {
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-center text-slate-400">
               <UserX size={32} className="mb-2 text-slate-300" />
-              <p className="text-sm font-medium">Aucun compte désactivé trouvé.</p>
+              <p className="text-sm font-medium">Aucun . trouvé.</p>
             </div>
           ) : (
             <div className="overflow-x-auto rounded-xl border border-slate-100">
