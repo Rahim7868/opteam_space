@@ -1,8 +1,9 @@
-import { ArchiveRestore, Trash2, X } from 'lucide-react'
+import { ArchiveRestore, ListChecks, Trash2, X } from 'lucide-react'
 import { useState } from 'react'
 import { getApiError } from '../api/client'
 import ConfirmModal from './ConfirmModal'
 import DataTable from './DataTable'
+import IconActionButton from './IconActionButton'
 import ErrorAlert from './ErrorAlert'
 import SuccessAlert from './SuccessAlert'
 
@@ -18,10 +19,14 @@ export default function ArchiveModal({
   canForceDelete = false,
   onRestore,
   onForceDelete,
+  onRestoreMany,
+  onForceDeleteMany,
 }) {
   const [confirm, setConfirm] = useState({ type: null, row: null })
   const [error, setError]     = useState('')
   const [success, setSuccess] = useState('')
+  const [selectedIds, setSelectedIds] = useState([])
+  const [selectionMode, setSelectionMode] = useState(false)
 
   if (!open) return null
 
@@ -29,7 +34,31 @@ export default function ArchiveModal({
     setError('')
     setSuccess('')
     setConfirm({ type: null, row: null })
+    setSelectedIds([])
+    setSelectionMode(false)
     onClose()
+  }
+
+  function toggleSelectionMode() {
+    if (selectionMode) {
+      setSelectionMode(false)
+      setSelectedIds([])
+      return
+    }
+
+    setSelectionMode(true)
+  }
+
+  function toggleAllRows() {
+    const allSelected = rows.length > 0 && rows.every((row) => selectedIds.includes(row.id))
+    setSelectedIds(allSelected ? [] : rows.map((row) => row.id))
+  }
+
+  function toggleRow(id) {
+    setSelectedIds((current) => current.includes(id)
+      ? current.filter((selectedId) => selectedId !== id)
+      : [...current, id]
+    )
   }
 
   async function run() {
@@ -37,8 +66,16 @@ export default function ArchiveModal({
     setError('')
     setSuccess('')
     try {
-      const message = type === 'restore' ? await onRestore(row) : await onForceDelete(row)
+      let message
+      if (type === 'restore') message = await onRestore(row)
+      if (type === 'force') message = await onForceDelete(row)
+      if (type === 'restore-many') message = await onRestoreMany(selectedIds)
+      if (type === 'force-many') message = await onForceDeleteMany(selectedIds)
       if (message) setSuccess(message)
+      setSelectedIds(type.endsWith('-many')
+        ? []
+        : selectedIds.filter((id) => id !== row?.id)
+      )
     } catch (err) {
       setError(getApiError(err))
     } finally {
@@ -46,29 +83,52 @@ export default function ArchiveModal({
     }
   }
 
-  const allColumns = [...columns]
+  const allColumns = [
+    ...(selectionMode ? [{
+      key: 'selection',
+      label: (
+        <input
+          type="checkbox"
+          aria-label="Sélectionner toutes les archives"
+          className="h-4 w-4 accent-teal-700"
+          checked={rows.length > 0 && rows.every((row) => selectedIds.includes(row.id))}
+          onChange={toggleAllRows}
+        />
+      ),
+      render: (row) => (
+        <input
+          type="checkbox"
+          aria-label={`Sélectionner ${row.designation}`}
+          className="h-4 w-4 accent-teal-700"
+          checked={selectedIds.includes(row.id)}
+          onChange={() => toggleRow(row.id)}
+        />
+      ),
+    }] : []),
+    ...columns,
+  ]
 
   if (canRestore || canForceDelete) {
     allColumns.push({
       key: 'actions',
       label: 'Actions',
       render: (row) => (
-        <div className="flex gap-2">
+        <div className="flex gap-1">
           {canRestore && (
-            <button
+            <IconActionButton
+              icon={ArchiveRestore}
+              label="Restaurer"
+              tone="success"
               onClick={() => setConfirm({ type: 'restore', row })}
-              className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100"
-            >
-              <ArchiveRestore size={13} /> Restaurer
-            </button>
+            />
           )}
           {canForceDelete && (
-            <button
+            <IconActionButton
+              icon={Trash2}
+              label="Supprimer définitivement"
+              tone="danger"
               onClick={() => setConfirm({ type: 'force', row })}
-              className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100"
-            >
-              <Trash2 size={13} /> Supprimer définitivement
-            </button>
+            />
           )}
         </div>
       ),
@@ -96,6 +156,47 @@ export default function ArchiveModal({
             <SuccessAlert message={success} onDismiss={() => setSuccess('')} />
           </div>
 
+          {(canRestore || canForceDelete) && (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <button
+                type="button"
+                aria-pressed={selectionMode}
+                onClick={toggleSelectionMode}
+                className="btn btn-secondary"
+              >
+                <ListChecks size={16} />
+                {selectionMode ? 'Annuler la sélection' : 'Sélectionner'}
+              </button>
+              {selectionMode && (
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-sm font-semibold text-slate-600">
+                    {selectedIds.length} {selectedIds.length === 1 ? 'bureau sélectionné' : 'bureaux sélectionnés'}
+                  </span>
+                  <div className="flex gap-1">
+                    {canRestore && (
+                      <IconActionButton
+                        icon={ArchiveRestore}
+                        label={selectedIds.length === 1 ? 'Restaurer le bureau sélectionné' : `Restaurer les ${selectedIds.length} bureaux sélectionnés`}
+                        tone="success"
+                        disabled={selectedIds.length === 0}
+                        onClick={() => setConfirm({ type: 'restore-many', row: null })}
+                      />
+                    )}
+                    {canForceDelete && (
+                      <IconActionButton
+                        icon={Trash2}
+                        label={selectedIds.length === 1 ? 'Supprimer définitivement le bureau sélectionné' : `Supprimer définitivement les ${selectedIds.length} bureaux sélectionnés`}
+                        tone="danger"
+                        disabled={selectedIds.length === 0}
+                        onClick={() => setConfirm({ type: 'force-many', row: null })}
+                      />
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="max-h-[60vh] overflow-y-auto">
             <DataTable columns={allColumns} rows={rows} loading={loading} />
           </div>
@@ -103,17 +204,21 @@ export default function ArchiveModal({
       </div>
 
       <ConfirmModal
-        open={confirm.type === 'restore'}
-        title="Confirmer la restauration"
-        message={`Voulez-vous restaurer ${itemLabel} ? Il réapparaîtra dans la liste principale.`}
+        open={confirm.type === 'restore' || confirm.type === 'restore-many'}
+        title={confirm.type === 'restore-many' ? 'Confirmer la restauration groupée' : 'Confirmer la restauration'}
+        message={confirm.type === 'restore-many'
+          ? `Voulez-vous restaurer les ${selectedIds.length} bureaux sélectionnés ? Ils réapparaîtront dans la liste principale.`
+          : `Voulez-vous restaurer ${itemLabel} ? Il réapparaîtra dans la liste principale.`}
         confirmText="Restaurer"
         onConfirm={run}
         onCancel={() => setConfirm({ type: null, row: null })}
       />
       <ConfirmModal
-        open={confirm.type === 'force'}
-        title="Confirmer la suppression définitive"
-        message={`Voulez-vous supprimer définitivement ${itemLabel} ? Cette action est irréversible.`}
+        open={confirm.type === 'force' || confirm.type === 'force-many'}
+        title={confirm.type === 'force-many' ? 'Confirmer la suppression groupée définitive' : 'Confirmer la suppression définitive'}
+        message={confirm.type === 'force-many'
+          ? `Voulez-vous supprimer définitivement les ${selectedIds.length} bureaux sélectionnés ? Cette action est irréversible.`
+          : `Voulez-vous supprimer définitivement ${itemLabel} ? Cette action est irréversible.`}
         confirmText="Supprimer définitivement"
         danger={true}
         onConfirm={run}

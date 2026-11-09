@@ -61,6 +61,18 @@ export function AuthProvider({ children }) {
     }
   }, [token])
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const { data } = await api.get('/auth/me')
+      const userData = data?.data ?? data
+      setUser(userData)
+      localStorage.setItem('opteam_user', JSON.stringify(userData))
+      return userData
+    } catch {
+      return null
+    }
+  }, [])
+
   const hasPermission = useCallback((permission) => {
     const perms = user?.toutes_permissions
     if (!perms) return false
@@ -110,6 +122,7 @@ export function AuthProvider({ children }) {
       token,
       loading,
       hasPermission,
+      refreshUser,
       login,
       changePassword,
       logout,

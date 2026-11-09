@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
+import IconActionButton from '../components/IconActionButton'
 import ErrorAlert from '../components/ErrorAlert'
 import SuccessAlert from '../components/SuccessAlert'
 import PageHeader from '../components/PageHeader'
@@ -34,7 +35,7 @@ const emptyForm = {
 }
 
 export default function Users() {
-  const { user, hasPermission } = useAuth()
+  const { user, hasPermission, refreshUser } = useAuth()
 
   const canCreate = hasPermission('creer_acteurs')
   const canModify = hasPermission('modifier_acteurs')
@@ -329,6 +330,9 @@ export default function Users() {
         permission_ids: ids,
         denied_ids: deniedIds,
       })
+      if (permModal.user.id === user?.id) {
+        await refreshUser()
+      }
       if (hasChanged) {
         setSuccess('Permissions mises à jour.')
       }
@@ -386,31 +390,41 @@ export default function Users() {
     {
       key: 'actions', label: 'Actions',
       render: (row) => (
-        <div className="flex gap-2">
-          <button
-            onClick={() => setDetailModal({ open: true, item: row })}
-            className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200"
-          >
-            <Eye size={13} /> Voir
-          </button>
+        <div className="flex gap-1">
+          {row.statut_modification === 'en_attente_validation_modification' && canApprouverModification ? (
+            <IconActionButton
+              icon={Eye}
+              label="Voir les modifications"
+              tone="info"
+              onClick={() => setReviewModal({ open: true, item: row })}
+            />
+          ) : (
+            <IconActionButton
+              icon={Eye}
+              label="Voir"
+              onClick={() => setDetailModal({ open: true, item: row })}
+            />
+          )}
           {canModify && (
-            <button
+            <IconActionButton
+              icon={Edit}
+              label="Modifier"
               onClick={() => startEdit(row)}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-            >
-              <Edit size={13} /> Modifier
-            </button>
+            />
           )}
           {isAdmin && (
-            <button
+            <IconActionButton
+              icon={Shield}
+              label="Permissions"
+              tone="primary"
               onClick={() => openPermModal(row)}
-              className="inline-flex items-center gap-1 rounded-lg bg-teal-50 px-2.5 py-1.5 text-xs font-semibold text-teal-700 ring-1 ring-teal-200 hover:bg-teal-100"
-            >
-              <Shield size={13} /> Permissions
-            </button>
+            />
           )}
           {canDesactivate && (
-            <button
+            <IconActionButton
+              icon={row.is_active ? ToggleRight : ToggleLeft}
+              label={row.is_active ? 'Désactiver' : 'Activer'}
+              tone={row.is_active ? 'danger' : 'success'}
               onClick={() => {
                 if (row.is_active) {
                   setDeactivateModal({ open: true, user: row })
@@ -418,25 +432,7 @@ export default function Users() {
                   setActivateConfirm({ open: true, user: row })
                 }
               }}
-              className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold ring-1 transition ${
-                row.is_active
-                  ? 'bg-rose-50 text-rose-700 ring-rose-200 hover:bg-rose-100'
-                  : 'bg-emerald-50 text-emerald-700 ring-emerald-200 hover:bg-emerald-100'
-              }`}
-            >
-              {row.is_active
-                ? <><ToggleRight size={13} /> Désactiver</>
-                : <><ToggleLeft size={13} /> Activer</>
-              }
-            </button>
-          )}
-          {canApprouverModification && row.statut_modification === 'en_attente_validation_modification' && (
-            <button
-              onClick={() => setReviewModal({ open: true, item: row })}
-              className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-200 hover:bg-blue-100 transition"
-            >
-              <Eye size={13} /> Voir les modifications
-            </button>
+            />
           )}
         </div>
       ),
@@ -795,6 +791,7 @@ export default function Users() {
       <ModificationReviewModal
         open={reviewModal.open}
         item={reviewModal.item}
+        fieldLabels={USER_FIELD_LABELS}
         fieldLabels={USER_FIELD_LABELS}
         onConfirm={async () => {
           const id = reviewModal.item?.id

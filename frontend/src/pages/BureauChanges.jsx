@@ -1,9 +1,10 @@
-import { Archive, Check, Edit, Eye, FileDown, FileSpreadsheet, MessageSquare, Plus, Search, Upload, X, RefreshCw } from 'lucide-react'
+import { Archive, Check, Edit, Eye, FileDown, FileSpreadsheet, ListChecks, MessageSquare, Plus, Search, Upload, X, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ArchiveModal from '../components/ArchiveModal'
 import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
+import IconActionButton from '../components/IconActionButton'
 import ErrorAlert from '../components/ErrorAlert'
 import SuccessAlert from '../components/SuccessAlert'
 import PageHeader from '../components/PageHeader'
@@ -74,6 +75,10 @@ export default function BureauChanges() {
   const [archiveOpen, setArchiveOpen]         = useState(false)
   const [archives, setArchives]               = useState([])
   const [archivesLoading, setArchivesLoading] = useState(false)
+  const [selectedIds, setSelectedIds]         = useState([])
+  const [selectionMode, setSelectionMode]     = useState(false)
+  const [bulkArchiveConfirm, setBulkArchiveConfirm] = useState(false)
+  const [bulkApproveConfirm, setBulkApproveConfirm] = useState(false)
 
   // Charger la liste des créateurs
   useEffect(() => {
@@ -83,7 +88,12 @@ export default function BureauChanges() {
   }, [])
 
   function resetFilters() {
-    setFilters(defaultFilters)
+    updateFilters(defaultFilters)
+  }
+
+  function updateFilters(nextFilters) {
+    setSelectedIds([])
+    setFilters(nextFilters)
   }
 
   // Exports
@@ -173,6 +183,33 @@ export default function BureauChanges() {
     try {
       const { data } = await api.delete(`/bureau-changes/${id}`)
       setSuccess(data?.message || 'Bureau de change archivé.')
+      setSelectedIds((current) => current.filter((selectedId) => selectedId !== id))
+      load()
+    } catch (err) {
+      setError(getApiError(err))
+    }
+  }
+
+  async function archiverPlusieurs() {
+    setError(''); setSuccess('')
+    try {
+      const { data } = await api.post('/bureau-changes/archiver-en-masse', { ids: archivableIds })
+      setSuccess(data?.message || `${archivableIds.length} bureau(x) de change archivé(s).`)
+      setSelectedIds([])
+      setBulkArchiveConfirm(false)
+      load()
+    } catch (err) {
+      setError(getApiError(err))
+    }
+  }
+
+  async function validerPlusieurs() {
+    setError(''); setSuccess('')
+    try {
+      const { data } = await api.post('/bureau-changes/valider-en-masse', { ids: approvableIds })
+      setSuccess(data?.message || `${approvableIds.length} bureau(x) de change approuvé(s).`)
+      setSelectedIds([])
+      setBulkApproveConfirm(false)
       load()
     } catch (err) {
       setError(getApiError(err))
@@ -190,6 +227,37 @@ export default function BureauChanges() {
     const { data } = await api.delete(`/bureau-changes/${row.id}/definitif`)
     loadArchives()
     return data.message
+  }
+
+  async function restaurerPlusieurs(ids) {
+    const { data } = await api.post('/bureau-changes/restaurer-en-masse', { ids })
+    load()
+    loadArchives()
+    return data.message
+  }
+
+  async function supprimerDefinitivementPlusieurs(ids) {
+    const { data } = await api.post('/bureau-changes/supprimer-definitivement-en-masse', { ids })
+    loadArchives()
+    return data.message
+  }
+
+  function toggleSelectedRows(ids) {
+    setSelectedIds((current) => {
+      const allSelected = ids.length > 0 && ids.every((id) => current.includes(id))
+      if (allSelected) return current.filter((id) => !ids.includes(id))
+      return [...new Set([...current, ...ids])]
+    })
+  }
+
+  function toggleSelectionMode() {
+    if (selectionMode) {
+      setSelectionMode(false)
+      setSelectedIds([])
+      return
+    }
+
+    setSelectionMode(true)
   }
 
   // CRUD
@@ -217,6 +285,7 @@ export default function BureauChanges() {
     try {
       await api.post(`/bureau-changes/${id}/valider`)
       setSuccess('Bureau de change validé.')
+      setSelectedIds((current) => current.filter((selectedId) => selectedId !== id))
       load()
     } catch (err) {
       setError(getApiError(err))
@@ -254,6 +323,7 @@ export default function BureauChanges() {
   }
 
   function startEdit(row) {
+    setDetailModal({ open: false, item: null })
     setEditing(row.id)
     const data = {
       numero_ordre:       row.numero_ordre ?? '',
@@ -299,7 +369,44 @@ export default function BureauChanges() {
   }
 
   // Colonnes
+  const archivableIds = selectedIds.filter((id) => rows.some((row) =>
+    row.id === id && row.statut_modification !== 'en_attente_validation_modification'
+  ))
+  const approvableIds = selectedIds.filter((id) => rows.some((row) =>
+    row.id === id && row.statut === 'en_attente'
+  ))
+  const selectableIds = rows.filter((row) =>
+    (canArchive && row.statut_modification !== 'en_attente_validation_modification')
+    || (canValidate && row.statut === 'en_attente')
+  ).map((row) => row.id)
+
   const columns = [
+    ...(selectionMode ? [{
+      key: 'selection',
+      label: (
+        <input
+          type="checkbox"
+          aria-label="Sélectionner tous les bureaux éligibles de cette page"
+          className="h-4 w-4 accent-teal-700"
+          checked={selectableIds.length > 0 && selectableIds.every((id) => selectedIds.includes(id))}
+          onChange={() => toggleSelectedRows(selectableIds)}
+        />
+      ),
+      render: (row) => {
+        const selectable = (canArchive && row.statut_modification !== 'en_attente_validation_modification')
+          || (canValidate && row.statut === 'en_attente')
+
+        return selectable ? (
+          <input
+            type="checkbox"
+            aria-label={`Sélectionner ${row.designation}`}
+            className="h-4 w-4 accent-teal-700"
+            checked={selectedIds.includes(row.id)}
+            onChange={() => toggleSelectedRows([row.id])}
+          />
+        ) : <span className="text-slate-300">—</span>
+      },
+    }] : []),
     { key: 'numero_ordre',       label: 'N° Ordre' },
     { key: 'designation',        label: 'Désignation' },
     { key: 'numero_agrement',    label: 'N° Agrément' },
@@ -356,23 +463,20 @@ export default function BureauChanges() {
 
         return (
           <div className="flex flex-col items-start gap-0.5">
-            {isModificationPending ? (
-              <StatusBadge status="en_attente_validation_modification" />
-            ) : (
-              <StatusBadge status={row.statut} />
-            )}
+            <StatusBadge status={isModificationPending ? 'en_attente_validation_modification' : row.statut} />
             {actorName && (
               <span className="text-[11px] italic text-slate-500 font-normal">
                 {actorName}
               </span>
             )}
             {showRejectReason && (
-              <button
+              <IconActionButton
+                icon={MessageSquare}
+                label="Voir le motif"
+                tone="danger"
                 onClick={() => setViewReasonModal({ open: true, reason: row.commentaire })}
-                className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:text-rose-800 hover:underline"
-              >
-                <MessageSquare size={12} /> Voir le motif
-              </button>
+                className="mt-1 h-8 w-8"
+              />
             )}
           </div>
         )
@@ -381,47 +485,48 @@ export default function BureauChanges() {
     {
       key: 'actions', label: 'Actions',
       render: (row) => (
-        <div className="flex gap-2">
-          <button
-            onClick={() => setDetailModal({ open: true, item: row })}
-            className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200"
-          >
-            <Eye size={13} /> Voir
-          </button>
-          {canModify && (row.statut === 'en_attente' || row.statut === 'rejete') && (isAdmin || row.createur?.id === user?.id) && (
-            <button onClick={() => startEdit(row)}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
-              <Edit size={13} /> Modifier
-            </button>
-          )}
+        <div className="flex gap-1">
           {canValidate && row.statut === 'en_attente' && (
-            <button onClick={() => setValidateConfirm({ open: true, id: row.id })}
-              className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100">
-              <Check size={13} /> Valider
-            </button>
+            <IconActionButton
+              icon={Check}
+              label="Approuver"
+              tone="success"
+              onClick={() => setValidateConfirm({ open: true, id: row.id })}
+            />
           )}
           {canReject && row.statut === 'en_attente' && (
-            <button onClick={() => setRejectConfirm({ open: true, id: row.id })}
-              className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100">
-              <X size={13} /> Rejeter
-            </button>
+            <IconActionButton
+              icon={X}
+              label="Rejeter"
+              tone="danger"
+              onClick={() => setRejectConfirm({ open: true, id: row.id })}
+            />
           )}
-          {canApprouverModification && row.statut_modification === 'en_attente_validation_modification' && (
-            <button
+          {canModify && (row.statut === 'en_attente' || row.statut === 'rejete') && (isAdmin || row.createur?.id === user?.id) && (
+            <IconActionButton icon={Edit} label="Modifier" onClick={() => startEdit(row)} />
+          )}
+          {row.statut_modification === 'en_attente_validation_modification' && canApprouverModification ? (
+            <IconActionButton
+              icon={Eye}
+              label="Voir les modifications"
+              tone="info"
               onClick={() => setReviewModal({ open: true, item: row })}
-              className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-200 hover:bg-blue-100 transition"
-            >
-              <Eye size={13} /> Voir les modifications
-            </button>
+            />
+          ) : (
+            <IconActionButton
+              icon={Eye}
+              label="Voir"
+              onClick={() => setDetailModal({ open: true, item: row })}
+            />
           )}
           {/* ARCHIVAGE : bouton Archiver (masqué si une modification est en attente) */}
           {canArchive && row.statut_modification !== 'en_attente_validation_modification' && (
-            <button
+            <IconActionButton
+              icon={Archive}
+              label="Archiver"
+              tone="warning"
               onClick={() => setArchiveConfirm({ open: true, id: row.id })}
-              className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200 hover:bg-amber-100"
-            >
-              <Archive size={13} /> Archiver
-            </button>
+            />
           )}
         </div>
       ),
@@ -514,10 +619,10 @@ export default function BureauChanges() {
           <input className="field pl-9 w-full"
             placeholder="Rechercher..."
             value={filters.search}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })} />
+            onChange={(e) => updateFilters({ ...filters, search: e.target.value, page: 1 })} />
         </div>
         <select className="field w-full" value={filters.statut}
-          onChange={(e) => setFilters({ ...filters, statut: e.target.value, page: 1 })}>
+          onChange={(e) => updateFilters({ ...filters, statut: e.target.value, page: 1 })}>
           <option value="">Tout les status</option>
           <option value="en_attente">En attente</option>
           <option value="valide">Validés</option>
@@ -528,17 +633,17 @@ export default function BureauChanges() {
           className="field w-full"
           placeholder="Date début"
           value={filters.date_debut || ''}
-          onChange={(e) => setFilters({ ...filters, date_debut: e.target.value, page: 1 })}
+          onChange={(e) => updateFilters({ ...filters, date_debut: e.target.value, page: 1 })}
         />
         <input
           type="date"
           className="field w-full"
           placeholder="Date fin"
           value={filters.date_fin || ''}
-          onChange={(e) => setFilters({ ...filters, date_fin: e.target.value, page: 1 })}
+          onChange={(e) => updateFilters({ ...filters, date_fin: e.target.value, page: 1 })}
         />
         <select className="field w-full" value={filters.createur_id}
-          onChange={(e) => setFilters({ ...filters, createur_id: e.target.value, page: 1 })}>
+          onChange={(e) => updateFilters({ ...filters, createur_id: e.target.value, page: 1 })}>
           <option value="">Tous les créateurs</option>
           {createurs.map((u) => (
             <option key={u.id} value={u.id}>{u.nom}</option>
@@ -649,12 +754,53 @@ export default function BureauChanges() {
         </form>
       )}
 
+      {(canArchive || canValidate) && (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm">
+          <button
+            type="button"
+            aria-pressed={selectionMode}
+            onClick={toggleSelectionMode}
+            className="btn btn-secondary"
+          >
+            <ListChecks size={16} />
+            {selectionMode ? 'Annuler la sélection' : 'Sélectionner'}
+          </button>
+          {selectionMode && (
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm font-semibold text-slate-600">
+                {selectedIds.length} {selectedIds.length === 1 ? 'bureau sélectionné' : 'bureaux sélectionnés'}
+              </span>
+              <div className="flex gap-1">
+                {canValidate && (
+                  <IconActionButton
+                    icon={Check}
+                    label={`Approuver ${approvableIds.length} bureau(x) sélectionné(s)`}
+                    tone="success"
+                    disabled={approvableIds.length === 0}
+                    onClick={() => setBulkApproveConfirm(true)}
+                  />
+                )}
+                {canArchive && (
+                  <IconActionButton
+                    icon={Archive}
+                    label={`Archiver ${archivableIds.length} bureau(x) sélectionné(s)`}
+                    tone="warning"
+                    disabled={archivableIds.length === 0}
+                    onClick={() => setBulkArchiveConfirm(true)}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <DataTable
         columns={columns}
         rows={rows}
         meta={meta}
         loading={loading}
-        onPage={(page) => setFilters({ ...filters, page })}
+        onPage={(page) => updateFilters({ ...filters, page })}
       />
 
       {/* Modals */}
@@ -692,6 +838,24 @@ export default function BureauChanges() {
           await archiver(id)
         }}
         onCancel={() => setArchiveConfirm({ open: false, id: null })}
+      />
+
+      <ConfirmModal
+        open={bulkArchiveConfirm}
+        title="Confirmer l’archivage groupé"
+        message="La sélection sera déplacée dans les archives. Aucun bureau ne sera archivé si un élément a une modification en attente."
+        confirmText="Archiver la sélection"
+        onConfirm={archiverPlusieurs}
+        onCancel={() => setBulkArchiveConfirm(false)}
+      />
+
+      <ConfirmModal
+        open={bulkApproveConfirm}
+        title="Confirmer l’approbation groupée"
+        message={`Les ${approvableIds.length} bureaux sélectionnés seront approuvés.`}
+        confirmText="Approuver la sélection"
+        onConfirm={validerPlusieurs}
+        onCancel={() => setBulkApproveConfirm(false)}
       />
 
       <RejectReasonModal
@@ -743,6 +907,8 @@ export default function BureauChanges() {
         canForceDelete={canForceDelete}
         onRestore={restaurerBureau}
         onForceDelete={supprimerDefinitivement}
+        onRestoreMany={restaurerPlusieurs}
+        onForceDeleteMany={supprimerDefinitivementPlusieurs}
       />
 
       {/* Modal Import Excel */}
@@ -867,6 +1033,55 @@ export default function BureauChanges() {
           { label: 'Créé le', value: formatDate(detailModal.item.created_at) },
           { label: 'Mis à jour le', value: formatDate(detailModal.item.updated_at) },
         ] : []}
+        footer={detailModal.item?.statut_modification !== 'en_attente_validation_modification' && detailModal.item && (
+          <>
+            {canValidate && detailModal.item.statut === 'en_attente' && (
+              <IconActionButton
+                icon={Check}
+                label="Valider"
+                tone="success"
+                onClick={() => {
+                  const id = detailModal.item.id
+                  setDetailModal({ open: false, item: null })
+                  setValidateConfirm({ open: true, id })
+                }}
+              />
+            )}
+            {canReject && detailModal.item.statut === 'en_attente' && (
+              <IconActionButton
+                icon={X}
+                label="Rejeter"
+                tone="danger"
+                onClick={() => {
+                  const id = detailModal.item.id
+                  setDetailModal({ open: false, item: null })
+                  setRejectConfirm({ open: true, id })
+                }}
+              />
+            )}
+            {canModify
+              && ['en_attente', 'rejete'].includes(detailModal.item.statut)
+              && (isAdmin || detailModal.item.createur?.id === user?.id) && (
+                <IconActionButton
+                  icon={Edit}
+                  label="Modifier"
+                  onClick={() => startEdit(detailModal.item)}
+                />
+              )}
+            {canArchive && ['en_attente', 'valide', 'rejete'].includes(detailModal.item.statut) && (
+              <IconActionButton
+                icon={Archive}
+                label="Archiver"
+                tone="warning"
+                onClick={() => {
+                  const id = detailModal.item.id
+                  setDetailModal({ open: false, item: null })
+                  setArchiveConfirm({ open: true, id })
+                }}
+              />
+            )}
+          </>
+        )}
       />
     </>
   )

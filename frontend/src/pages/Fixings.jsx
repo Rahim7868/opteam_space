@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
+import IconActionButton from '../components/IconActionButton'
 import ErrorAlert from '../components/ErrorAlert'
 import FixingEvolutionChart from '../components/FixingEvolutionChart'
 import SuccessAlert from '../components/SuccessAlert'
@@ -239,6 +240,20 @@ export default function Fixings() {
     }
   }
 
+  function startEditFixing(fixing) {
+    setDetailModal({ open: false, item: null })
+    setEditingId(fixing.id)
+    const formData = {
+      date_fixing: fixing.date_fixing,
+      devise: fixing.devise,
+      cours: String(fixing.cours ?? ''),
+      piece_jointe: null,
+    }
+    setForm(formData)
+    originalForm.current = { ...formData }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   // Colonnes
   const columns = [
     { key: 'date_fixing', label: 'Date' },
@@ -290,23 +305,20 @@ export default function Fixings() {
 
         return (
           <div className="flex flex-col items-start gap-0.5">
-            {isModificationPending ? (
-              <StatusBadge status="en_attente_validation_modification" />
-            ) : (
-              <StatusBadge status={row.statut} />
-            )}
+            <StatusBadge status={isModificationPending ? 'en_attente_validation_modification' : row.statut} />
             {actorName && (
               <span className="text-[11px] italic text-slate-500 font-normal">
                 {actorName}
               </span>
             )}
             {showRejectReason && (
-              <button
+              <IconActionButton
+                icon={MessageSquare}
+                label="Voir le motif"
+                tone="danger"
                 onClick={() => setViewReasonModal({ open: true, reason: row.commentaire })}
-                className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 hover:text-rose-800 hover:underline"
-              >
-                <MessageSquare size={12} /> Voir le motif
-              </button>
+                className="mt-1 h-8 w-8"
+              />
             )}
           </div>
         )
@@ -315,55 +327,43 @@ export default function Fixings() {
     {
       key: 'actions', label: 'Actions',
       render: (row) => (
-        <div className="flex gap-2">
-          <button
-            onClick={() => setDetailModal({ open: true, item: row })}
-            className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200"
-          >
-            <Eye size={13} /> Voir
-          </button>
+        <div className="flex gap-1">
+          {row.statut_modification === 'en_attente_validation_modification' && canApprouverModification ? (
+            <IconActionButton
+              icon={Eye}
+              label="Voir les modifications"
+              tone="info"
+              onClick={() => setReviewModal({ open: true, item: row })}
+            />
+          ) : (
+            <IconActionButton
+              icon={Eye}
+              label="Voir"
+              onClick={() => setDetailModal({ open: true, item: row })}
+            />
+          )}
           {canModify && (row.statut === 'en_attente' || row.statut === 'rejete') && (isAdmin || row.createur?.id === user?.id) && (
-            <button
-              onClick={() => {
-                setEditingId(row.id)
-                const formData = {
-                  date_fixing:  row.date_fixing,
-                  devise:       row.devise,
-                  cours:        String(row.cours ?? ''),
-                  piece_jointe: null,
-                }
-                setForm(formData)
-                originalForm.current = { ...formData }
-                window.scrollTo({ top: 0, behavior: 'smooth' })
-              }}
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-            >
-              <Edit size={13} /> Modifier
-            </button>
+            <IconActionButton
+              icon={Edit}
+              label="Modifier"
+              onClick={() => startEditFixing(row)}
+            />
           )}
           {canValidate && row.statut === 'en_attente' && (
-            <button
+            <IconActionButton
+              icon={Check}
+              label="Valider"
+              tone="success"
               onClick={() => setValidateConfirm({ open: true, id: row.id })}
-              className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 transition"
-            >
-              <Check size={13} /> Valider
-            </button>
+            />
           )}
           {canReject && row.statut === 'en_attente' && (
-            <button
+            <IconActionButton
+              icon={X}
+              label="Rejeter"
+              tone="danger"
               onClick={() => setRejectConfirm({ open: true, id: row.id })}
-              className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100 transition"
-            >
-              <X size={13} /> Rejeter
-            </button>
-          )}
-          {canApprouverModification && row.statut_modification === 'en_attente_validation_modification' && (
-            <button
-              onClick={() => setReviewModal({ open: true, item: row })}
-              className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-200 hover:bg-blue-100 transition"
-            >
-              <Eye size={13} /> Voir les modifications
-            </button>
+            />
           )}
         </div>
       ),
@@ -651,6 +651,43 @@ export default function Fixings() {
           { label: 'Créé le', value: formatDate(detailModal.item.created_at) },
           { label: 'Mis à jour le', value: formatDate(detailModal.item.updated_at) },
         ] : []}
+        footer={detailModal.item?.statut_modification !== 'en_attente_validation_modification' && detailModal.item && (
+          <>
+            {canValidate && detailModal.item.statut === 'en_attente' && (
+              <IconActionButton
+                icon={Check}
+                label="Valider"
+                tone="success"
+                onClick={() => {
+                  const id = detailModal.item.id
+                  setDetailModal({ open: false, item: null })
+                  setValidateConfirm({ open: true, id })
+                }}
+              />
+            )}
+            {canReject && detailModal.item.statut === 'en_attente' && (
+              <IconActionButton
+                icon={X}
+                label="Rejeter"
+                tone="danger"
+                onClick={() => {
+                  const id = detailModal.item.id
+                  setDetailModal({ open: false, item: null })
+                  setRejectConfirm({ open: true, id })
+                }}
+              />
+            )}
+            {canModify
+              && ['en_attente', 'rejete'].includes(detailModal.item.statut)
+              && (isAdmin || detailModal.item.createur?.id === user?.id) && (
+                <IconActionButton
+                  icon={Edit}
+                  label="Modifier"
+                  onClick={() => startEditFixing(detailModal.item)}
+                />
+              )}
+          </>
+        )}
       />
     </>
   )

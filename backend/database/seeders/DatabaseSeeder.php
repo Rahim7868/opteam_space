@@ -36,9 +36,11 @@ class DatabaseSeeder extends Seeder
             'exporter_bureau_excel',
             'importer_bureau',
             'approuver_modification_bureau',
+            'archiver_bureau_change',
+            'restaurer_bureau_change',
+            'supprimer_definitivement_bureau_change',
             'creer_acteurs',
             'modifier_acteurs',
-            'supprimer_acteurs',
             'desactiver_acteurs',
             'approuver_modification_user',
             'gerer_roles',
@@ -47,11 +49,24 @@ class DatabaseSeeder extends Seeder
             'gerer_directions',
             'gerer_departements',
             'gerer_services',
+            'consulter_audits',
+            'supprimer_audit_actions_utilisateurs',
+            'supprimer_audit_fixings_bureaux',
+            'supprimer_audit_locaux',
+            'supprimer_audit_utilisateurs_roles_permissions',
+            'exporter_audit_actions_utilisateurs_pdf',
+            'exporter_audit_actions_utilisateurs_excel',
+            'exporter_audit_fixings_bureaux_pdf',
+            'exporter_audit_fixings_bureaux_excel',
+            'exporter_audit_locaux_pdf',
+            'exporter_audit_locaux_excel',
+            'exporter_audit_utilisateurs_roles_permissions_pdf',
+            'exporter_audit_utilisateurs_roles_permissions_excel',
         ];
 
         $permissionModels = [];
         foreach ($permissions as $libelle) {
-            $permissionModels[$libelle] = Permission::create(['libelle' => $libelle]);
+            $permissionModels[$libelle] = Permission::firstOrCreate(['libelle' => $libelle]);
         }
 
         // ── 2. Rôles ──────────────────────────────────────────

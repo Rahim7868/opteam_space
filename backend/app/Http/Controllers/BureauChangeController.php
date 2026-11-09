@@ -8,7 +8,9 @@ use App\Imports\BureauChangesImport;
 use App\Models\BureauChange;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -347,6 +349,169 @@ class BureauChangeController extends Controller
                 ->latest('deleted_at')
                 ->get()
         );
+    }
+
+    public function archiveMany(Request $request): JsonResponse
+    {
+        if (!$request->user()->hasPermission('archiver_bureau_change')) {
+            return response()->json(['message' => 'Permission refusée.'], 403);
+        }
+
+        $ids = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['required', 'integer', 'distinct', 'exists:bureau_changes,id'],
+        ])['ids'];
+
+        return DB::transaction(function () use ($ids): JsonResponse {
+            $bureaux = BureauChange::query()->whereKey($ids)->lockForUpdate()->get();
+
+            if ($bureaux->count() !== count($ids)) {
+                return response()->json(['message' => 'Un ou plusieurs bureaux ne sont plus actifs.'], 422);
+            }
+
+            if ($bureaux->contains(fn (BureauChange $bureau) =>
+                $bureau->statut_modification === 'en_attente_validation_modification'
+            )) {
+                return response()->json([
+                    'message' => "Impossible d'archiver la sélection : une modification est en attente d'approbation.",
+                ], 422);
+            }
+
+            foreach ($bureaux as $bureauChange) {
+                AuditLogger::forModel(
+                    'bureau_archived',
+                    $bureauChange,
+                    'Archivage bureau de change : ' . $bureauChange->designation
+                );
+
+                $bureauChange->delete();
+            }
+
+            return response()->json([
+                'message' => count($ids) . (count($ids) === 1
+                    ? ' bureau de change archivé.'
+                    : ' bureaux de change archivés.'),
+                'processed' => count($ids),
+            ]);
+        });
+    }
+
+    public function validateMany(Request $request): JsonResponse
+    {
+        if (!$request->user()->hasPermission('valider_bureau_change')) {
+            return response()->json(['message' => 'Permission refusée.'], 403);
+        }
+
+        $ids = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['required', 'integer', 'distinct', 'exists:bureau_changes,id'],
+        ])['ids'];
+
+        return DB::transaction(function () use ($ids): JsonResponse {
+            $bureaux = BureauChange::query()->whereKey($ids)->lockForUpdate()->get();
+
+            if ($bureaux->count() !== count($ids)
+                || $bureaux->contains(fn (BureauChange $bureau) => $bureau->statut !== 'en_attente')
+            ) {
+                return response()->json([
+                    'message' => 'Tous les bureaux sélectionnés doivent être en attente de validation.',
+                ], 422);
+            }
+
+            foreach ($bureaux as $bureauChange) {
+                $bureauChange->update([
+                    'statut' => 'valide',
+                    'validated_by' => auth()->id(),
+                ]);
+
+                AuditLogger::forModel(
+                    'bureau_valide',
+                    $bureauChange,
+                    'Validation bureau de change : ' . $bureauChange->designation
+                );
+            }
+
+            return response()->json([
+                'message' => count($ids) . (count($ids) === 1
+                    ? ' bureau de change approuvé.'
+                    : ' bureaux de change approuvés.'),
+                'processed' => count($ids),
+            ]);
+        });
+    }
+
+    public function restoreMany(Request $request): JsonResponse
+    {
+        if (!$request->user()->hasPermission('restaurer_bureau_change')) {
+            return response()->json(['message' => 'Permission refusée.'], 403);
+        }
+
+        $ids = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['required', 'integer', 'distinct', 'exists:bureau_changes,id'],
+        ])['ids'];
+
+        return DB::transaction(function () use ($ids): JsonResponse {
+            $bureaux = BureauChange::onlyTrashed()->whereKey($ids)->lockForUpdate()->get();
+
+            if ($bureaux->count() !== count($ids)) {
+                return response()->json(['message' => 'Un ou plusieurs bureaux ne sont pas dans les archives.'], 422);
+            }
+
+            foreach ($bureaux as $bureauChange) {
+                $bureauChange->restore();
+
+                AuditLogger::forModel(
+                    'bureau_restored',
+                    $bureauChange,
+                    'Restauration bureau de change : ' . $bureauChange->designation
+                );
+            }
+
+            return response()->json([
+                'message' => count($ids) . (count($ids) === 1
+                    ? ' bureau de change restauré.'
+                    : ' bureaux de change restaurés.'),
+                'processed' => count($ids),
+            ]);
+        });
+    }
+
+    public function forceDeleteMany(Request $request): JsonResponse
+    {
+        if (!$request->user()->hasPermission('supprimer_definitivement_bureau_change')) {
+            return response()->json(['message' => 'Permission refusée.'], 403);
+        }
+
+        $ids = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['required', 'integer', 'distinct', 'exists:bureau_changes,id'],
+        ])['ids'];
+
+        return DB::transaction(function () use ($ids): JsonResponse {
+            $bureaux = BureauChange::onlyTrashed()->whereKey($ids)->lockForUpdate()->get();
+
+            if ($bureaux->count() !== count($ids)) {
+                return response()->json(['message' => 'Un ou plusieurs bureaux ne sont pas dans les archives.'], 422);
+            }
+
+            foreach ($bureaux as $bureauChange) {
+                AuditLogger::forModel(
+                    'bureau_force_deleted',
+                    $bureauChange,
+                    'Suppression définitive bureau de change : ' . $bureauChange->designation
+                );
+
+                $bureauChange->forceDelete();
+            }
+
+            return response()->json([
+                'message' => count($ids) . (count($ids) === 1
+                    ? ' bureau de change supprimé définitivement.'
+                    : ' bureaux de change supprimés définitivement.'),
+                'processed' => count($ids),
+            ]);
+        });
     }
 
     // ── ARCHIVAGE : restaurer ──

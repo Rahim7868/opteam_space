@@ -86,6 +86,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // rester AVANT apiResource, sinon Laravel les prendrait pour un identifiant.
     Route::get('/bureau-changes/archives',          [BureauChangeController::class, 'archives']);
     Route::post('/bureau-changes/import',           [BureauChangeController::class, 'import']);
+    Route::post('/bureau-changes/archiver-en-masse', [BureauChangeController::class, 'archiveMany']);
+    Route::post('/bureau-changes/valider-en-masse', [BureauChangeController::class, 'validateMany']);
+    Route::post('/bureau-changes/restaurer-en-masse', [BureauChangeController::class, 'restoreMany']);
+    Route::post('/bureau-changes/supprimer-definitivement-en-masse', [BureauChangeController::class, 'forceDeleteMany']);
     Route::post('/bureau-changes/{id}/restaurer',   [BureauChangeController::class, 'restore']);
     Route::delete('/bureau-changes/{id}/definitif', [BureauChangeController::class, 'forceDelete']);
     Route::apiResource('bureau-changes', BureauChangeController::class);
@@ -94,4 +98,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // ── Audit logs ─────────────────────────────────────────────
     Route::get('/audit-logs', [AuditLogController::class, 'index']);
+    Route::get('/export/audit-logs/pdf', [AuditLogController::class, 'exportPdf']);
+    Route::get('/export/audit-logs/excel', [AuditLogController::class, 'exportExcel']);
+    Route::delete('/audit-logs/bulk', [AuditLogController::class, 'destroyMany']);
+    Route::delete('/audit-logs/{auditLog}', [AuditLogController::class, 'destroy']);
 });

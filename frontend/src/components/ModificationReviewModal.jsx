@@ -7,7 +7,6 @@ export const FIXING_FIELD_LABELS = {
   devise: 'Devise',
   cours: 'Cours',
   piece_jointe: 'Pièce jointe',
-  commentaire: 'Commentaire',
 }
 
 export const BUREAU_FIELD_LABELS = {
@@ -18,7 +17,6 @@ export const BUREAU_FIELD_LABELS = {
   representant_legal: 'Représentant légal',
   contact: 'Contact',
   adresse: 'Adresse',
-  commentaire: 'Commentaire',
 }
 
 function formatValue(value) {
@@ -36,6 +34,18 @@ function formatValue(value) {
   }
 
   return String(value)
+}
+
+function valuesDiffer(key, oldValue, newValue) {
+  if (['date_fixing', 'date_expiration_agrement'].includes(key)) {
+    return String(oldValue ?? '').slice(0, 10) !== String(newValue ?? '').slice(0, 10)
+  }
+
+  if (key === 'cours' && oldValue != null && newValue != null) {
+    return Number(oldValue) !== Number(newValue)
+  }
+
+  return String(oldValue ?? '') !== String(newValue ?? '')
 }
 
 // Génère une URL de fichier à partir d'un chemin
@@ -105,25 +115,33 @@ export default function ModificationReviewModal({
   const proposed = item.modification_proposee
   const proposedLibelles = item.modification_proposee_libelles || proposed
   const currentLibelles = item.valeurs_actuelles_libelles || {}
+  const proposedKeys = Object.keys(proposed).filter((key) => key !== 'piece_jointe_url')
 
   // URLs des fichiers (ancien et nouveau)
   const oldFileUrl = item.piece_jointe_url || generateFileUrl(item.piece_jointe)
   const newFileUrl = proposed.piece_jointe_url || generateFileUrl(proposed.piece_jointe)
 
-  const changes = Object.keys(proposed)
-    .filter((key) => key !== 'piece_jointe_url')
+  const fields = [...new Set([...Object.keys(fieldLabels), ...proposedKeys])]
+    .filter((key) => key in item || key in proposed)
     .map((key) => {
-      const oldValue = currentLibelles[key] !== undefined ? currentLibelles[key] : item[key]
-      const newValue = proposedLibelles[key] !== undefined ? proposedLibelles[key] : proposed[key]
+      const oldRawValue = item[key]
+      const hasProposedValue = Object.hasOwn(proposed, key)
+      const newRawValue = hasProposedValue ? proposed[key] : oldRawValue
+      const oldValue = currentLibelles[key] !== undefined ? currentLibelles[key] : oldRawValue
+      const newValue = hasProposedValue && proposedLibelles[key] !== undefined
+        ? proposedLibelles[key]
+        : currentLibelles[key] !== undefined && !hasProposedValue
+          ? currentLibelles[key]
+          : newRawValue
 
       return {
         key,
         label: fieldLabels[key] || key,
         oldValue,
         newValue,
+        changed: hasProposedValue && valuesDiffer(key, oldRawValue, newRawValue),
       }
     })
-    .filter(({ oldValue, newValue }) => String(oldValue ?? '') !== String(newValue ?? ''))
 
   return (
     <>
@@ -154,9 +172,9 @@ export default function ModificationReviewModal({
           </div>
 
           <div className="px-6 py-5">
-            {changes.length === 0 ? (
+            {fields.length === 0 ? (
               <p className="text-center text-sm text-slate-500">
-                Aucune modification detectee.
+                Aucune valeur à afficher.
               </p>
             ) : (
               <div className="overflow-hidden rounded-2xl border border-slate-200">
@@ -175,7 +193,7 @@ export default function ModificationReviewModal({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {changes.map(({ key, label, oldValue, newValue }) => {
+                    {fields.map(({ key, label, oldValue, newValue, changed }) => {
                       const isFileField = key === 'piece_jointe'
 
                       let oldDisplay
@@ -191,7 +209,10 @@ export default function ModificationReviewModal({
                           </span>
                         )
                         newDisplay = (
-                          <span className="inline-flex rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800 ring-1 ring-emerald-200">
+                          <span className={`inline-flex rounded-lg px-2.5 py-1 text-xs font-medium ring-1 ${changed
+                            ? 'bg-emerald-50 text-emerald-800 ring-emerald-200'
+                            : 'bg-slate-50 text-slate-600 ring-slate-200'
+                          }`}>
                             {formatValue(newValue)}
                           </span>
                         )
@@ -200,13 +221,18 @@ export default function ModificationReviewModal({
                       return (
                         <tr key={key} className="transition hover:bg-slate-50/50">
                           <td className="px-4 py-3 font-semibold text-slate-700">
-                            {label}
+                            <span>{label}</span>
+                            {changed && (
+                              <span className="ml-2 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-bold text-teal-700 ring-1 ring-teal-200">
+                                Modifié
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             {oldDisplay}
                           </td>
                           <td className="px-4 py-3">
-                            {newDisplay}
+                            {changed ? newDisplay : null}
                           </td>
                         </tr>
                       )
@@ -217,7 +243,7 @@ export default function ModificationReviewModal({
             )}
           </div>
 
-          {changes.length > 0 && (
+          {proposedKeys.length > 0 && (
             <div className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">
               <button
                 onClick={() => setRejectModal(true)}

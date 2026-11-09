@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
+import IconActionButton from '../components/IconActionButton'
 import ErrorAlert from '../components/ErrorAlert'
 import SuccessAlert from '../components/SuccessAlert'
 import PageHeader from '../components/PageHeader'
@@ -107,21 +108,19 @@ export default function Departements() {
     {
       key: 'actions', label: 'Actions',
       render: (row) => (
-        <div className="flex gap-2">
-          <button
+        <div className="flex gap-1">
+          <IconActionButton
+            icon={Eye}
+            label="Voir"
             onClick={() => setDetailModal({ open: true, item: row })}
-            className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200"
-          >
-            <Eye size={13} /> Voir
-          </button>
-          <button onClick={() => startEdit(row)}
-            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
-            <Edit size={13} /> Modifier
-          </button>
-          <button onClick={() => setConfirmModal({ open: true, id: row.id })}
-            className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-2.5 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100">
-            <Trash2 size={13} /> Supprimer
-          </button>
+          />
+          <IconActionButton icon={Edit} label="Modifier" onClick={() => startEdit(row)} />
+          <IconActionButton
+            icon={Trash2}
+            label="Supprimer"
+            tone="danger"
+            onClick={() => setConfirmModal({ open: true, id: row.id })}
+          />
         </div>
       ),
     },

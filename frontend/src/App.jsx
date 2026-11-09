@@ -93,7 +93,7 @@ export default function App() {
             </Route>
 
             <Route path="audit-logs"
-              element={<ProtectedRoute permissions={['modifier_acteurs', 'creer_acteurs', 'supprimer_acteurs', 'desactiver_acteurs']} />}>
+              element={<ProtectedRoute permission="consulter_audits" />}>
               <Route index element={<Navigate to="/audit-logs/actions" replace />} />
               <Route path="actions" element={<AuditLogs />} />
               <Route path="fixings-bureaux" element={<AuditExchangeLogs />} />

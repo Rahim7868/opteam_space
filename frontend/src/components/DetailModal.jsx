@@ -39,6 +39,7 @@ export default function DetailModal({
   title,
   fields = [],
   children,
+  footer,
 }) {
   const show = isOpen ?? open
   if (!show) return null
@@ -94,7 +95,8 @@ export default function DetailModal({
         </div>
 
         {/* Footer */}
-        <div className="mt-6 flex justify-end border-t border-slate-100 pt-4 shrink-0">
+        <div className="mt-6 flex flex-col-reverse gap-3 border-t border-slate-100 pt-4 shrink-0 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap gap-2">{footer}</div>
           <button onClick={onClose} className="btn btn-secondary">
             Fermer
           </button>

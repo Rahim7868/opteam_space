@@ -68,8 +68,7 @@ export default function AppLayout() {
     { to: '/audit-logs/acces', label: 'Utilisateurs, rôles et permissions' },
   ]
 
-  // 🔥 AUDIT : remplacer 'gerer_acteurs' par 'modifier_acteurs'
-  const showAudit     = hasPermission('modifier_acteurs')
+  const showAudit     = hasPermission('consulter_audits')
   const showActeurs   = acteursLinks.length > 0
   const showStructure = structureLinks.length > 0
 
