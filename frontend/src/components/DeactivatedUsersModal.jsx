@@ -1,9 +1,10 @@
-import { Search, UserX, X } from 'lucide-react'
+import { Search, ToggleLeft, UserX, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import api, { getApiError } from '../api/client'
+import IconActionButton from './IconActionButton'
 import { formatDate } from './DetailModal'
 
-export default function DeactivatedUsersModal({ open, onClose }) {
+export default function DeactivatedUsersModal({ open, onClose, onActivate }) {
   const [users, setUsers]     = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
@@ -96,6 +97,7 @@ export default function DeactivatedUsersModal({ open, onClose }) {
                     <th className="py-3 px-3">Désactivé par</th>
                     <th className="py-3 px-3">Quand</th>
                     <th className="py-3 px-3">Motif de désactivation</th>
+                    <th className="py-3 px-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 bg-white">
@@ -119,6 +121,14 @@ export default function DeactivatedUsersModal({ open, onClose }) {
                         <span className="inline-block rounded-lg bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 ring-1 ring-rose-200/70 break-words max-w-xs">
                           {u.motif_desactivation}
                         </span>
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <IconActionButton
+                          icon={ToggleLeft}
+                          label="Activer"
+                          tone="success"
+                          onClick={() => onActivate(u)}
+                        />
                       </td>
                     </tr>
                   ))}

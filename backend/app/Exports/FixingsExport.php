@@ -24,7 +24,7 @@ class FixingsExport implements FromCollection, WithHeadings, WithMapping, WithSt
 
     public function collection()
     {
-        return $this->fixings;
+        return $this->fixings; 
     }
 
     public function headings(): array

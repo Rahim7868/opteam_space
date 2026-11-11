@@ -1,4 +1,4 @@
-export default function ConfirmModal({ open, title, message, onConfirm, onCancel, danger, confirmText = 'Confirmer', cancelText = 'Annuler' }) {
+export default function ConfirmModal({ open, title, message, onConfirm, onCancel, danger, error, confirmText = 'Confirmer', cancelText = 'Annuler' }) {
   if (!open) return null
 
   return (
@@ -6,6 +6,11 @@ export default function ConfirmModal({ open, title, message, onConfirm, onCancel
       <div className="animate-enter w-full max-w-md rounded-3xl border border-white/70 bg-white p-6 shadow-2xl shadow-slate-950/20">
         <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
         <p className="mt-2 text-sm leading-6 text-slate-500">{message}</p>
+        {error && (
+          <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            {error}
+          </div>
+        )}
 
         <div className="mt-6 flex justify-end gap-3">
           <button onClick={onCancel} className="btn btn-secondary">

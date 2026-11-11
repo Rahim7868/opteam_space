@@ -75,6 +75,7 @@ export default function Users() {
   const [submitConfirm, setSubmitConfirm]           = useState(false)
   const [deactivateModal, setDeactivateModal]       = useState({ open: false, user: null })
   const [activateConfirm, setActivateConfirm]       = useState({ open: false, user: null })
+  const [activationError, setActivationError]       = useState('')
   const [deactivatedListOpen, setDeactivatedListOpen] = useState(false)
   const [permsConfirm, setPermsConfirm]             = useState(false)
 
@@ -205,13 +206,15 @@ export default function Users() {
   async function handleActivate() {
     const targetUser = activateConfirm.user
     if (!targetUser) return
+    setActivationError('')
     try {
       await api.patch(`/users/${targetUser.id}/toggle-status`)
       setSuccess(`Le compte de ${targetUser.nom} a été réactivé.`)
       setActivateConfirm({ open: false, user: null })
+      setDeactivatedListOpen(false)
       load()
     } catch (err) {
-      setError(getApiError(err))
+      setActivationError(getApiError(err))
     }
   }
 
@@ -384,7 +387,14 @@ export default function Users() {
     },
     {
       key: 'is_active', label: 'Statut',
-      render: (row) => <StatusBadge status={row.is_active ? 'actif' : 'inactif'} />,
+      render: (row) => (
+        <div className="flex flex-col items-start gap-1">
+          <StatusBadge status={row.is_active ? 'actif' : 'inactif'} />
+          {row.statut_modification === 'en_attente_validation_modification' && (
+            <StatusBadge status="en_attente_validation_modification" />
+          )}
+        </div>
+      ),
     },
     // Actions avant Modification
     {
@@ -436,21 +446,6 @@ export default function Users() {
           )}
         </div>
       ),
-    },
-    // Modification après Actions
-    {
-      key: 'statut_modification',
-      label: 'Modification',
-      render: (row) => {
-        if (row.statut_modification === 'en_attente_validation_modification') {
-          return (
-            <span className="inline-flex items-center rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-700 ring-1 ring-sky-200">
-              En attente validation modification
-            </span>
-          )
-        }
-        return <span className="text-slate-400 text-xs">—</span>
-      }
     },
   ]
 
@@ -758,20 +753,28 @@ export default function Users() {
         onCancel={() => setDeactivateModal({ open: false, user: null })}
       />
 
+      {/* Modal liste des comptes désactivés */}
+      <DeactivatedUsersModal
+        open={deactivatedListOpen}
+        onClose={() => setDeactivatedListOpen(false)}
+        onActivate={(targetUser) => {
+          setActivationError('')
+          setActivateConfirm({ open: true, user: targetUser })
+        }}
+      />
+
       {/* Modal confirmation activation compte */}
       <ConfirmModal
         open={activateConfirm.open}
         title="Activer ce compte ?"
         message={`Êtes-vous sûr de vouloir réactiver le compte de ${activateConfirm.user?.nom ?? ''} ?`}
+        error={activationError}
         confirmText="Activer"
         onConfirm={handleActivate}
-        onCancel={() => setActivateConfirm({ open: false, user: null })}
-      />
-
-      {/* Modal liste des comptes désactivés */}
-      <DeactivatedUsersModal
-        open={deactivatedListOpen}
-        onClose={() => setDeactivatedListOpen(false)}
+        onCancel={() => {
+          setActivationError('')
+          setActivateConfirm({ open: false, user: null })
+        }}
       />
 
       {/* Modal confirmation permissions directes */}

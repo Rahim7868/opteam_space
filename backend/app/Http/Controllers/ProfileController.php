@@ -25,6 +25,7 @@ class ProfileController extends Controller
 
         $user->update([
             'password' => Hash::make($data['new_password']),
+            'failed_login_attempts' => 0,
         ]);
 
         return response()->json([

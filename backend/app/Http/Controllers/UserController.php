@@ -305,6 +305,7 @@ class UserController extends Controller
         } else {
             $user->update([
                 'is_active'           => true,
+                'failed_login_attempts' => 0,
                 'motif_desactivation' => null,
                 'desactive_par'       => null,
                 'desactive_le'        => null,

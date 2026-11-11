@@ -26,7 +26,7 @@ class User extends Authenticatable
     protected $fillable = [
         'nom', 'email', 'password', 'adresse', 'fonction',
         'service_id', 'role_id',
-        'is_active', 'must_change_password',
+        'is_active', 'must_change_password', 'failed_login_attempts',
         'motif_desactivation', 'desactive_par', 'desactive_le',
         'statut_modification', 'modification_proposee',
         'modification_proposee_par', 'modification_approuvee_par',
@@ -41,6 +41,7 @@ class User extends Authenticatable
             'password'              => 'hashed',
             'is_active'             => 'boolean',
             'must_change_password'  => 'boolean',
+            'failed_login_attempts' => 'integer',
             'modification_proposee' => 'array',
             'desactive_le'          => 'datetime',
         ];

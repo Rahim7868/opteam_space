@@ -9,28 +9,77 @@ use App\Models\User;
 use App\Services\AuditLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    private const MAX_FAILED_LOGIN_ATTEMPTS = 3;
+    private const FAILED_LOGIN_DEACTIVATION_REASON = 'Compte désactivé automatiquement après 3 tentatives de connexion échouées.';
+    private const FAILED_LOGIN_MESSAGE = 'Trop de tentatives de connexion échouées. Veuillez contacter l’administrateur.';
+
     public function login(LoginRequest $request): JsonResponse
     {
-        $user = User::with(['role.permissions', 'service', 'permissionsDirectes', 'permissionsRetirees'])
-            ->where('email', $request->email)
-            ->first();
+        $userId = User::where('email', $request->email)->value('id');
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
-            throw ValidationException::withMessages([
-                'email' => ['Les identifiants sont invalides.'],
-            ]);
+        if (!$userId) {
+            return $this->loginFailure('Les identifiants sont invalides.');
         }
 
-        if (!$user->is_active) {
-            throw ValidationException::withMessages([
-                'email' => ['Ce compte est désactivé. Contactez un administrateur.'],
-            ]);
+        $result = DB::transaction(function () use ($userId, $request) {
+            $user = User::query()->lockForUpdate()->findOrFail($userId);
+
+            if (!$user->is_active) {
+                return ['status' => 'inactive'];
+            }
+
+            if (!Hash::check($request->password, $user->password)) {
+                $user->failed_login_attempts++;
+
+                if ($user->failed_login_attempts >= self::MAX_FAILED_LOGIN_ATTEMPTS) {
+                    $user->update([
+                        'is_active' => false,
+                        'motif_desactivation' => self::FAILED_LOGIN_DEACTIVATION_REASON,
+                        'desactive_par' => null,
+                        'desactive_le' => now(),
+                    ]);
+                    $user->tokens()->delete();
+
+                    AuditLogger::log(
+                        'user_deactivated',
+                        'User',
+                        $user->id,
+                        'Désactivation automatique du compte de ' . $user->nom . ' (Motif : ' . self::FAILED_LOGIN_DEACTIVATION_REASON . ')'
+                    );
+
+                    return ['status' => 'deactivated'];
+                }
+
+                $user->save();
+
+                return ['status' => 'invalid'];
+            }
+
+            if ($user->failed_login_attempts > 0) {
+                $user->update(['failed_login_attempts' => 0]);
+            }
+
+            return ['status' => 'authenticated', 'user' => $user];
+        });
+
+        if ($result['status'] === 'invalid') {
+            return $this->loginFailure('Les identifiants sont invalides.');
         }
+
+        if ($result['status'] === 'deactivated') {
+            return $this->loginFailure(self::FAILED_LOGIN_MESSAGE);
+        }
+
+        if ($result['status'] === 'inactive') {
+            return $this->loginFailure('Ce compte est désactivé. Contactez un administrateur.');
+        }
+
+        $user = $result['user']->load(['role.permissions', 'service', 'permissionsDirectes', 'permissionsRetirees']);
 
         // Récupérer le paramètre "remember"
         $remember = $request->boolean('remember', false);
@@ -57,6 +106,14 @@ class AuthController extends Controller
         ]);
     }
 
+    private function loginFailure(string $message): JsonResponse
+    {
+        return response()->json([
+            'message' => $message,
+            'errors' => ['email' => [$message]],
+        ], 422);
+    }
+
     public function changePassword(ChangePasswordRequest $request): JsonResponse
     {
         $user = $request->user();
@@ -70,6 +127,7 @@ class AuthController extends Controller
         $user->update([
             'password'             => Hash::make($request->new_password),
             'must_change_password' => false,
+            'failed_login_attempts' => 0,
         ]);
 
         AuditLogger::log(

@@ -65,6 +65,7 @@ class ForgotPasswordController extends Controller
                 // donc on assigne directement sans bcrypt() pour éviter le double hashage
                 $user->password = $password;
                 $user->must_change_password = false;
+                $user->failed_login_attempts = 0;
                 $user->save();
             }
         );
