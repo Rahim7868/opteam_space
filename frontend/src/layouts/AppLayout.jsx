@@ -9,6 +9,7 @@ import {
   Menu,
   Network,
   Shield,
+  ScrollText,
   UserCog,
   Users,
   X,
@@ -69,6 +70,7 @@ export default function AppLayout() {
   ]
 
   const showAudit     = hasPermission('consulter_audits')
+  const showTechnicalLogs = hasPermission('consulter_logs_techniques')
   const showActeurs   = acteursLinks.length > 0
   const showStructure = structureLinks.length > 0
 
@@ -255,6 +257,23 @@ export default function AppLayout() {
                 </div>
               )}
             </div>
+          )}
+
+          {showTechnicalLogs && (
+            <NavLink
+              to="/technical-logs"
+              onClick={() => setSidebarOpen(false)}
+              className={({ isActive }) =>
+                `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${
+                  isActive
+                    ? 'bg-teal-50 text-teal-800 shadow-sm ring-1 ring-teal-100'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950'
+                }`
+              }
+            >
+              <ScrollText size={18} />
+              Journaux techniques
+            </NavLink>
           )}
 
         </nav>

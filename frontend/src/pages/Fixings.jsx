@@ -1,5 +1,6 @@
 import { Check, Edit, Eye, FileDown, FileSpreadsheet, MessageSquare, Plus, Search, X, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
 import DataTable from '../components/DataTable'
@@ -33,6 +34,8 @@ function formatAmount(value) {
 
 export default function Fixings() {
   const { hasPermission, user } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
 
   const canCreate   = hasPermission('creer_fixing')
   const canModify   = hasPermission('modifier_fixing')
@@ -47,6 +50,13 @@ export default function Fixings() {
 
   // Admin peut modifier les fixings des autres
   const isAdmin = user?.role?.libelle === 'Admin' || (hasPermission('creer_acteurs') && hasPermission('modifier_acteurs'))
+  const requestedEdit = location.state?.editFixing
+  const initialEditForm = requestedEdit ? {
+    date_fixing: requestedEdit.date_fixing,
+    devise: requestedEdit.devise,
+    cours: String(requestedEdit.cours ?? ''),
+    piece_jointe: null,
+  } : null
 
   const [rows, setRows]           = useState([])
   const [chartRows, setChartRows] = useState([])
@@ -55,11 +65,11 @@ export default function Fixings() {
   const [chartLoading, setChartLoading] = useState(true)
   const defaultFilters = { statut: '', devise: '', date_debut: '', date_fin: '', createur_id: '', page: 1 }
   const [filters, setFilters]     = useState(defaultFilters)
-  const [form, setForm]           = useState(emptyForm)
-  const [editingId, setEditingId] = useState(null)
+  const [form, setForm]           = useState(initialEditForm ?? emptyForm)
+  const [editingId, setEditingId] = useState(requestedEdit?.id ?? null)
   const [error, setError]         = useState('')
   const [success, setSuccess]     = useState('')
-  const originalForm = useRef(null)
+  const originalForm = useRef(initialEditForm ? { ...initialEditForm } : null)
   const [createurs, setCreateurs] = useState([])
 
   const [submitConfirm, setSubmitConfirm]     = useState(false)
@@ -156,6 +166,12 @@ export default function Fixings() {
 
   useEffect(load, [filters])
   useEffect(loadChartData, [])
+
+  useEffect(() => {
+    if (location.state?.editFixing) {
+      navigate(location.pathname, { replace: true, state: null })
+    }
+  }, [location.pathname, location.state, navigate])
 
   // CRUD
   async function submit() {

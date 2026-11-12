@@ -50,6 +50,7 @@ class DatabaseSeeder extends Seeder
             'gerer_departements',
             'gerer_services',
             'consulter_audits',
+            'consulter_logs_techniques',
             'supprimer_audit_actions_utilisateurs',
             'supprimer_audit_fixings_bureaux',
             'supprimer_audit_locaux',

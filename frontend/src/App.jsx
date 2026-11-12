@@ -26,6 +26,7 @@ const AuditLogs       = lazy(() => import('./pages/AuditLogs'))
 const AuditAccessLogs = lazy(() => import('./pages/AuditAccessLogs'))
 const AuditExchangeLogs = lazy(() => import('./pages/AuditExchangeLogs'))
 const AuditLocationLogs = lazy(() => import('./pages/AuditLocationLogs'))
+const TechnicalLogs    = lazy(() => import('./pages/TechnicalLogs'))
 
 export default function App() {
   return (
@@ -99,6 +100,11 @@ export default function App() {
               <Route path="fixings-bureaux" element={<AuditExchangeLogs />} />
               <Route path="locaux" element={<AuditLocationLogs />} />
               <Route path="acces" element={<AuditAccessLogs />} />
+            </Route>
+
+            <Route path="technical-logs"
+              element={<ProtectedRoute permission="consulter_logs_techniques" />}>
+              <Route index element={<TechnicalLogs />} />
             </Route>
 
           </Route>

@@ -14,6 +14,7 @@ use App\Http\Controllers\FixingController;
 use App\Http\Controllers\BureauChangeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\TechnicalLogController;
 use App\Http\Controllers\ForgotPasswordController;
 use Illuminate\Support\Facades\Route;
 
@@ -102,4 +103,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/export/audit-logs/excel', [AuditLogController::class, 'exportExcel']);
     Route::delete('/audit-logs/bulk', [AuditLogController::class, 'destroyMany']);
     Route::delete('/audit-logs/{auditLog}', [AuditLogController::class, 'destroy']);
+
+    // ── Journaux techniques ────────────────────────────────────
+    Route::get('/technical-logs', [TechnicalLogController::class, 'index']);
 });

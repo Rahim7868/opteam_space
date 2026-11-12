@@ -48,4 +48,24 @@ class Fixing extends Model
     {
         return in_array($this->statut, ['en_attente', 'rejete']);
     }
+
+    public function calculateVariation(): ?float
+    {
+        $precedent = self::query()
+            ->where('devise', $this->devise)
+            ->where(function ($query) {
+                $query->where('date_fixing', '<', $this->date_fixing)
+                    ->orWhere(function ($subQuery) {
+                        $subQuery->where('date_fixing', $this->date_fixing)
+                            ->where('id', '<', $this->id);
+                    });
+            })
+            ->orderBy('date_fixing', 'desc')
+            ->orderBy('id', 'desc')
+            ->first();
+
+        return $precedent
+            ? round((float) $this->cours - (float) $precedent->cours, 6)
+            : null;
+    }
 }

@@ -26,12 +26,14 @@ export function RejectReasonModal({ open, title, message, onConfirm, onCancel })
         <p className="mt-2 text-sm leading-6 text-slate-500">{message || 'Veuillez saisir le motif du refus :'}</p>
 
         <div className="mt-4">
-          <label className="mb-1 block text-xs font-semibold text-slate-700">Motif du refus (optionnel)</label>
+          <label className="mb-1 block text-xs font-semibold text-slate-700">Motif du refus (obligatoire)</label>
           <textarea
             className="field min-h-[90px] w-full resize-none p-3 text-sm"
-            placeholder="Ex : Document incomplet, cours erroné..."
+            placeholder="Au moins 3 caractères. Ex : Document incomplet, cours erroné..."
             value={reason}
             onChange={(e) => setReason(e.target.value)}
+            minLength={3}
+            required
           />
         </div>
 
@@ -39,7 +41,11 @@ export function RejectReasonModal({ open, title, message, onConfirm, onCancel })
           <button onClick={handleCancel} className="btn btn-secondary">
             Annuler
           </button>
-          <button onClick={handleConfirm} className="btn bg-rose-600 hover:bg-rose-700 text-white">
+          <button
+            onClick={handleConfirm}
+            disabled={reason.trim().length < 3}
+            className="btn bg-rose-600 hover:bg-rose-700 text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
             Refuser
           </button>
         </div>

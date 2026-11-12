@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\BureauChange;
 use App\Models\Fixing;
 use App\Models\User;
+use App\Http\Resources\FixingResource;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
@@ -15,7 +16,8 @@ class DashboardController extends Controller
     {
         $user = request()->user();
 
-        $peutVoirTout = $user->hasPermission('valider_fixing');
+        $peutVoirTout = $user->hasPermission('consulter_fixing')
+            || $user->hasPermission('valider_fixing');
 
         // ── Fixings ───────────────────────────────────────────
         $fixingsQuery = Fixing::query();
@@ -30,17 +32,27 @@ class DashboardController extends Controller
             ->groupBy('statut')
             ->pluck('total', 'statut');
 
+        $recentFixings = (clone $fixingsQuery)
+            ->with([
+                'createur:id,nom',
+                'validateur:id,nom',
+                'modificationProposeePar:id,nom',
+                'modificationApprouveePar:id,nom',
+            ])
+            ->latest()
+            ->limit(5)
+            ->get();
+        $recentFixings->each(function (Fixing $fixing): void {
+            $fixing->variation = $fixing->calculateVariation();
+        });
+
         $payload = [
             'fixings_total'      => (clone $fixingsQuery)->count(),
             'fixings_en_attente' => $statuts['en_attente'] ?? 0,
             'fixings_valides'    => $statuts['valide']     ?? 0,
             'fixings_rejetes'    => $statuts['rejete']     ?? 0,
 
-            'recent_fixings' => (clone $fixingsQuery)
-                ->with('createur:id,nom')
-                ->latest()
-                ->limit(5)
-                ->get(),
+            'recent_fixings' => FixingResource::collection($recentFixings)->resolve(request()),
         ];
 
         // ── Stats globales → uniquement si l'utilisateur gère les acteurs ──

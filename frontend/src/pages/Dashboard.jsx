@@ -1,8 +1,16 @@
-import { Building2, ClipboardList, Clock, Users, XCircle, CheckCircle } from 'lucide-react'
+import { Building2, Check, CheckCircle, ClipboardList, Clock, Edit, Eye, MessageSquare, Users, X, XCircle } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import api from '../api/client'
+import { useNavigate } from 'react-router-dom'
+import api, { getApiError } from '../api/client'
+import ConfirmModal from '../components/ConfirmModal'
+import DetailModal, { formatDate, formatDateOnly } from '../components/DetailModal'
+import ErrorAlert from '../components/ErrorAlert'
+import IconActionButton from '../components/IconActionButton'
+import ModificationReviewModal, { FIXING_FIELD_LABELS } from '../components/ModificationReviewModal'
 import PageHeader from '../components/PageHeader'
+import { RejectReasonModal, ViewReasonModal } from '../components/RejectReasonModal'
 import StatusBadge from '../components/StatusBadge'
+import SuccessAlert from '../components/SuccessAlert'
 import { useAuth } from '../context/AuthContext'
 
 // ── Carte stat ─────────────────────────────────────────────────
@@ -32,25 +40,90 @@ function StatCard({ label, value, icon: Icon, color, loading }) {
 }
 
 // ── Ligne fixing récent ────────────────────────────────────────
-function FixingRow({ fixing }) {
+function FixingRow({
+  fixing,
+  userId,
+  isAdmin,
+  canModify,
+  canValidate,
+  canReject,
+  canApproveModification,
+  onView,
+  onViewModifications,
+  onEdit,
+  onValidate,
+  onReject,
+  onViewReason,
+}) {
+  const modificationPending = fixing.statut_modification === 'en_attente_validation_modification'
+  const canEdit = canModify
+    && ['en_attente', 'rejete'].includes(fixing.statut)
+    && (isAdmin || fixing.createur?.id === userId)
+
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-100 px-4 py-3 transition hover:bg-slate-50">
-      <div>
+      <div className="min-w-0">
         <div className="font-semibold text-slate-800">
           {fixing.devise}{' '}
           <span className="text-slate-500">—</span>{' '}
           {Number(fixing.cours).toFixed(4)}
         </div>
-        <div className="mt-0.5 text-xs text-slate-400">
-          {fixing.date_fixing}
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+          <span>{formatDateOnly(fixing.date_fixing)}</span>
           {fixing.createur && (
-            <span className="ml-2 text-slate-400">
-              · {fixing.createur.nom}
-            </span>
+            <span>· {fixing.createur.nom}</span>
+          )}
+          <StatusBadge status={modificationPending ? 'en_attente_validation_modification' : fixing.statut} />
+          {fixing.statut === 'rejete' && fixing.commentaire && (
+            <IconActionButton
+              icon={MessageSquare}
+              label="Voir le motif du rejet"
+              tone="danger"
+              className="h-7 w-7"
+              onClick={() => onViewReason(fixing.commentaire)}
+            />
           )}
         </div>
       </div>
-      <StatusBadge status={fixing.statut} />
+      <div className="flex shrink-0 gap-1">
+        {modificationPending && canApproveModification ? (
+          <IconActionButton
+            icon={Eye}
+            label="Voir les modifications"
+            tone="info"
+            onClick={() => onViewModifications(fixing)}
+          />
+        ) : (
+          <IconActionButton
+            icon={Eye}
+            label="Voir les détails"
+            onClick={() => onView(fixing)}
+          />
+        )}
+        {canEdit && (
+          <IconActionButton
+            icon={Edit}
+            label="Modifier"
+            onClick={() => onEdit(fixing)}
+          />
+        )}
+        {canValidate && fixing.statut === 'en_attente' && (
+          <IconActionButton
+            icon={Check}
+            label="Valider"
+            tone="success"
+            onClick={() => onValidate(fixing.id)}
+          />
+        )}
+        {canReject && fixing.statut === 'en_attente' && (
+          <IconActionButton
+            icon={X}
+            label="Rejeter"
+            tone="danger"
+            onClick={() => onReject(fixing.id)}
+          />
+        )}
+      </div>
     </div>
   )
 }
@@ -75,14 +148,54 @@ function ListSkeleton({ rows = 4 }) {
 // ── Page principale ────────────────────────────────────────────
 export default function Dashboard() {
   const { user, hasPermission } = useAuth()
+  const navigate = useNavigate()
   const [stats, setStats]       = useState({})
   const [loading, setLoading]   = useState(true)
+  const [reloadVersion, setReloadVersion] = useState(0)
+  const [error, setError]       = useState('')
+  const [success, setSuccess]   = useState('')
+  const [detailModal, setDetailModal] = useState({ open: false, item: null })
+  const [reviewModal, setReviewModal] = useState({ open: false, item: null })
+  const [validateConfirm, setValidateConfirm] = useState({ open: false, id: null })
+  const [rejectConfirm, setRejectConfirm] = useState({ open: false, id: null })
+  const [viewReasonModal, setViewReasonModal] = useState({ open: false, reason: '' })
 
   useEffect(() => {
+    let active = true
     api.get('/dashboard')
-      .then(({ data }) => setStats(data ?? {}))
-      .finally(() => setLoading(false))
-  }, [])
+      .then(({ data }) => {
+        if (active) setStats(data ?? {})
+      })
+      .catch((requestError) => {
+        if (active) setError(getApiError(requestError))
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => { active = false }
+  }, [reloadVersion])
+
+  const canModify = hasPermission('modifier_fixing')
+  const canValidate = hasPermission('valider_fixing')
+  const canReject = hasPermission('rejeter_fixing')
+  const canApproveModification = hasPermission('approuver_modification_fixing')
+  const isAdmin = user?.role?.libelle === 'Admin'
+    || (hasPermission('creer_acteurs') && hasPermission('modifier_acteurs'))
+
+  async function performFixingAction(id, action, payload, successMessage) {
+    setError('')
+    setSuccess('')
+
+    try {
+      const { data } = await api.post(`/fixings/${id}/${action}`, payload ?? {})
+      setSuccess(data?.message || successMessage)
+      setLoading(true)
+      setReloadVersion((version) => version + 1)
+    } catch (requestError) {
+      setError(getApiError(requestError))
+    }
+  }
 
   // Cartes toujours visibles
   const baseCards = [
@@ -136,6 +249,8 @@ export default function Dashboard() {
         title="Tableau de bord"
         subtitle={`Bienvenue, ${user?.nom ?? ''}. Vue rapide de l'activité.`}
       />
+      <ErrorAlert message={error} onDismiss={() => setError('')} />
+      <SuccessAlert message={success} onDismiss={() => setSuccess('')} />
 
       {/* ── Cartes stats ──────────────────────────────────── */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -170,7 +285,22 @@ export default function Dashboard() {
           ) : (
             <div className="space-y-2">
               {stats.recent_fixings.map((fixing) => (
-                <FixingRow key={fixing.id} fixing={fixing} />
+                <FixingRow
+                  key={fixing.id}
+                  fixing={fixing}
+                  userId={user?.id}
+                  isAdmin={isAdmin}
+                  canModify={canModify}
+                  canValidate={canValidate}
+                  canReject={canReject}
+                  canApproveModification={canApproveModification}
+                  onView={(item) => setDetailModal({ open: true, item })}
+                  onViewModifications={(item) => setReviewModal({ open: true, item })}
+                  onEdit={(item) => navigate('/fixings', { state: { editFixing: item } })}
+                  onValidate={(id) => setValidateConfirm({ open: true, id })}
+                  onReject={(id) => setRejectConfirm({ open: true, id })}
+                  onViewReason={(reason) => setViewReasonModal({ open: true, reason })}
+                />
               ))}
             </div>
           )}
@@ -243,6 +373,166 @@ export default function Dashboard() {
           )}
         </div>
       )}
+
+      <ConfirmModal
+        open={validateConfirm.open}
+        title="Confirmer la validation ?"
+        message="Le fixing sera marqué comme validé."
+        confirmText="Valider"
+        onConfirm={async () => {
+          const id = validateConfirm.id
+          setValidateConfirm({ open: false, id: null })
+          if (id) await performFixingAction(id, 'valider', null, 'Fixing validé.')
+        }}
+        onCancel={() => setValidateConfirm({ open: false, id: null })}
+      />
+
+      <RejectReasonModal
+        open={rejectConfirm.open}
+        title="Rejeter ce fixing"
+        message="Indique le motif du rejet."
+        onConfirm={async (commentaire) => {
+          const id = rejectConfirm.id
+          setRejectConfirm({ open: false, id: null })
+          if (id) {
+            await performFixingAction(
+              id,
+              'rejeter',
+              { commentaire },
+              'Fixing rejeté.'
+            )
+          }
+        }}
+        onCancel={() => setRejectConfirm({ open: false, id: null })}
+      />
+
+      <ModificationReviewModal
+        open={reviewModal.open}
+        item={reviewModal.item}
+        fieldLabels={FIXING_FIELD_LABELS}
+        onConfirm={async () => {
+          const id = reviewModal.item?.id
+          setReviewModal({ open: false, item: null })
+          if (id) {
+            await performFixingAction(
+              id,
+              'approuver-modification',
+              null,
+              'Modifications appliquées définitivement.'
+            )
+          }
+        }}
+        onReject={async () => {
+          const id = reviewModal.item?.id
+          setReviewModal({ open: false, item: null })
+          if (id) {
+            await performFixingAction(
+              id,
+              'rejeter-modification',
+              null,
+              'Modifications rejetées. Les données restent inchangées.'
+            )
+          }
+        }}
+        onClose={() => setReviewModal({ open: false, item: null })}
+      />
+
+      <ViewReasonModal
+        open={viewReasonModal.open}
+        title="Motif du rejet du fixing"
+        reason={viewReasonModal.reason}
+        onClose={() => setViewReasonModal({ open: false, reason: '' })}
+      />
+
+      <DetailModal
+        open={detailModal.open}
+        onClose={() => setDetailModal({ open: false, item: null })}
+        title={detailModal.item
+          ? `${detailModal.item.devise} — ${formatDateOnly(detailModal.item.date_fixing)}`
+          : 'Fixing'}
+        fields={detailModal.item ? [
+          { label: 'Date du fixing', value: formatDateOnly(detailModal.item.date_fixing) },
+          { label: 'Devise', value: detailModal.item.devise },
+          { label: 'Cours', value: Number(detailModal.item.cours).toLocaleString('fr-FR', { maximumFractionDigits: 6 }) },
+          {
+            label: 'Variation',
+            value: detailModal.item.variation != null
+              ? `${Number(detailModal.item.variation) > 0 ? '+' : ''}${Number(detailModal.item.variation).toLocaleString('fr-FR', { maximumFractionDigits: 6 })}`
+              : '—',
+          },
+          { label: 'Créateur', value: detailModal.item.createur?.nom ?? '—' },
+          { label: 'Statut', value: <StatusBadge status={detailModal.item.statut} /> },
+          ...(detailModal.item.statut === 'valide'
+            ? [{ label: 'Validé par', value: detailModal.item.validateur?.nom ?? '—' }]
+            : []),
+          ...(detailModal.item.statut === 'rejete'
+            ? [{ label: 'Refusé par', value: detailModal.item.validateur?.nom ?? '—' }]
+            : []),
+          ...(detailModal.item.statut === 'rejete' && detailModal.item.commentaire
+            ? [{ label: 'Motif de rejet', value: detailModal.item.commentaire }]
+            : []),
+          {
+            label: 'Pièce jointe',
+            value: detailModal.item.piece_jointe_url ? (
+              <a
+                href={detailModal.item.piece_jointe_url}
+                target="_blank"
+                rel="noreferrer"
+                className="text-teal-600 hover:underline text-xs font-semibold"
+              >
+                Voir la pièce jointe
+              </a>
+            ) : '—',
+          },
+          { label: 'Créé le', value: formatDate(detailModal.item.created_at) },
+          { label: 'Mis à jour le', value: formatDate(detailModal.item.updated_at) },
+        ] : []}
+        footer={
+          detailModal.item?.statut_modification !== 'en_attente_validation_modification'
+          && detailModal.item
+          && (
+            <>
+              {canValidate && detailModal.item.statut === 'en_attente' && (
+                <IconActionButton
+                  icon={Check}
+                  label="Valider"
+                  tone="success"
+                  onClick={() => {
+                    const id = detailModal.item.id
+                    setDetailModal({ open: false, item: null })
+                    setValidateConfirm({ open: true, id })
+                  }}
+                />
+              )}
+              {canReject && detailModal.item.statut === 'en_attente' && (
+                <IconActionButton
+                  icon={X}
+                  label="Rejeter"
+                  tone="danger"
+                  onClick={() => {
+                    const id = detailModal.item.id
+                    setDetailModal({ open: false, item: null })
+                    setRejectConfirm({ open: true, id })
+                  }}
+                />
+              )}
+              {canModify
+                && ['en_attente', 'rejete'].includes(detailModal.item.statut)
+                && (isAdmin || detailModal.item.createur?.id === user?.id) && (
+                  <IconActionButton
+                    icon={Edit}
+                    label="Modifier"
+                    onClick={() => {
+                      const item = detailModal.item
+                      setDetailModal({ open: false, item: null })
+                      navigate('/fixings', { state: { editFixing: item } })
+                    }}
+                  />
+                )}
+            </>
+          )
+        }
+      />
     </>
   )
 }

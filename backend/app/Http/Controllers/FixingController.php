@@ -44,21 +44,7 @@ class FixingController extends Controller
         $fixings = $query->paginate(request('per_page', 10));
 
         $fixings->getCollection()->transform(function ($fixing) {
-            $precedent = Fixing::where('devise', $fixing->devise)
-                ->where(function ($query) use ($fixing) {
-                    $query->where('date_fixing', '<', $fixing->date_fixing)
-                        ->orWhere(function ($q) use ($fixing) {
-                            $q->where('date_fixing', $fixing->date_fixing)
-                              ->where('id', '<', $fixing->id);
-                        });
-                })
-                ->orderBy('date_fixing', 'desc')
-                ->orderBy('id', 'desc')
-                ->first();
-
-            $fixing->variation = $precedent
-                ? round((float) $fixing->cours - (float) $precedent->cours, 6)
-                : null;
+            $fixing->variation = $fixing->calculateVariation();
 
             return $fixing;
         });
@@ -225,7 +211,7 @@ class FixingController extends Controller
 
     public function rejeter(Fixing $fixing): JsonResponse
     {
-        if (!auth()->user()->hasPermission('valider_fixing')) {
+        if (!auth()->user()->hasPermission('rejeter_fixing')) {
             return response()->json(['message' => 'Permission refusée.'], 403);
         }
 
