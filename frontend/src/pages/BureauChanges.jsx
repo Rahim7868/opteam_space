@@ -13,11 +13,16 @@ import { useAuth } from '../context/AuthContext'
 import ModificationReviewModal, { BUREAU_FIELD_LABELS } from '../components/ModificationReviewModal'
 import { RejectReasonModal, ViewReasonModal } from '../components/RejectReasonModal'
 import DetailModal, { formatDate, formatDateOnly } from '../components/DetailModal'
+import FormModal from '../components/FormModal'
 
 const emptyForm = {
   numero_ordre: '', designation: '', numero_agrement: '',
   date_expiration_agrement: '',
   representant_legal: '', contact: '', adresse: '',
+}
+
+function appendExportTimezone(params) {
+  params.append('timezone', Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')
 }
 
 export default function BureauChanges() {
@@ -42,15 +47,24 @@ export default function BureauChanges() {
   const canSeeArchives = canArchive || canRestore || canForceDelete
 
   // Admin peut modifier les bureaux des autres
+  const isAdminRole = user?.role?.libelle === 'Admin'
   const isAdmin = user?.role?.libelle === 'Admin' || (hasPermission('creer_acteurs') && hasPermission('modifier_acteurs'))
 
   const [rows, setRows]       = useState([])
   const [meta, setMeta]       = useState(null)
+  const [loadedFilterKey, setLoadedFilterKey] = useState(null)
   const [loading, setLoading] = useState(true)
   const defaultFilters = { search: '', statut: '', date_debut: '', date_fin: '', createur_id: '', page: 1 }
   const [filters, setFilters] = useState(defaultFilters)
+  const currentFilterKey = JSON.stringify(
+    Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ''))
+  )
+  const hasFilteredResults = !loading
+    && loadedFilterKey === currentFilterKey
+    && Number(meta?.total ?? 0) > 0
   const [form, setForm]       = useState(emptyForm)
   const [editing, setEditing] = useState(null)
+  const [formModalOpen, setFormModalOpen] = useState(false)
   const [error, setError]     = useState('')
   const [success, setSuccess] = useState('')
   const originalForm          = useRef(null)
@@ -96,15 +110,31 @@ export default function BureauChanges() {
     setFilters(nextFilters)
   }
 
+  function openCreateModal() {
+    setEditing(null)
+    setForm({ ...emptyForm })
+    originalForm.current = null
+    setError('')
+    setFormModalOpen(true)
+  }
+
+  function closeFormModal() {
+    setFormModalOpen(false)
+    setEditing(null)
+    setForm({ ...emptyForm })
+    originalForm.current = null
+  }
+
   // Exports
   function exportPdf() {
-    if (!canExportPdf) return
+    if (!canExportPdf || !hasFilteredResults) return
     const params = new URLSearchParams()
     if (filters.search) params.append('search', filters.search)
     if (filters.statut) params.append('statut', filters.statut)
     if (filters.date_debut) params.append('date_debut', filters.date_debut)
     if (filters.date_fin) params.append('date_fin', filters.date_fin)
     if (filters.createur_id) params.append('createur_id', filters.createur_id)
+    appendExportTimezone(params)
 
     api.get(`/export/bureau-changes-pdf?${params.toString()}`, {
       responseType: 'blob'
@@ -125,13 +155,14 @@ export default function BureauChanges() {
   }
 
   function exportExcel() {
-    if (!canExportExcel) return
+    if (!canExportExcel || !hasFilteredResults) return
     const params = new URLSearchParams()
     if (filters.search) params.append('search', filters.search)
     if (filters.statut) params.append('statut', filters.statut)
     if (filters.date_debut) params.append('date_debut', filters.date_debut)
     if (filters.date_fin) params.append('date_fin', filters.date_fin)
     if (filters.createur_id) params.append('createur_id', filters.createur_id)
+    appendExportTimezone(params)
 
     api.get(`/export/bureau-changes-excel?${params.toString()}`, {
       responseType: 'blob'
@@ -157,8 +188,13 @@ export default function BureauChanges() {
     const params = Object.fromEntries(
       Object.entries(filters).filter(([, v]) => v !== '')
     )
+    const filterKey = JSON.stringify(params)
     api.get('/bureau-changes', { params })
-      .then(({ data }) => { setRows(data.data); setMeta(data.meta) })
+      .then(({ data }) => {
+        setRows(data.data)
+        setMeta(data.meta)
+        setLoadedFilterKey(filterKey)
+      })
       .finally(() => setLoading(false))
   }
 
@@ -266,7 +302,7 @@ export default function BureauChanges() {
     try {
       if (editing) {
         if (JSON.stringify(form) === JSON.stringify(originalForm.current)) {
-          setForm(emptyForm); setEditing(null)
+          closeFormModal()
           return
         }
         const { data } = await api.put(`/bureau-changes/${editing}`, form)
@@ -275,7 +311,8 @@ export default function BureauChanges() {
         await api.post('/bureau-changes', form)
         setSuccess('Bureau de change créé avec succès.')
       }
-      setForm(emptyForm); setEditing(null); load()
+      closeFormModal()
+      load()
     } catch (err) {
       setError(getApiError(err))
     }
@@ -336,7 +373,8 @@ export default function BureauChanges() {
     }
     setForm(data)
     originalForm.current = { ...data }
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    setError('')
+    setFormModalOpen(true)
   }
 
   // Import
@@ -563,25 +601,32 @@ export default function BureauChanges() {
         }
         action={
           <div className="flex gap-2">
+            {canCreate && (
+              <button onClick={openCreateModal} className="btn btn-primary">
+                <Plus size={16} /> Ajouter un bureau
+              </button>
+            )}
             <button
               onClick={exportPdf}
-              disabled={!canExportPdf}
+              disabled={!canExportPdf || !hasFilteredResults}
               className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all ${
-                canExportPdf
+                canExportPdf && hasFilteredResults
                   ? 'bg-red-500 hover:bg-red-600 hover:shadow-md cursor-pointer'
                   : 'bg-gray-400 cursor-not-allowed opacity-50'
               }`}
+              title={!canExportPdf ? 'Permission d’export PDF requise.' : !hasFilteredResults ? 'Aucun résultat à exporter pour ces filtres.' : 'Exporter en PDF'}
             >
               <FileDown size={16} /> PDF
             </button>
             <button
               onClick={exportExcel}
-              disabled={!canExportExcel}
+              disabled={!canExportExcel || !hasFilteredResults}
               className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all ${
-                canExportExcel
+                canExportExcel && hasFilteredResults
                   ? 'bg-green-600 hover:bg-green-700 hover:shadow-md cursor-pointer'
                   : 'bg-gray-400 cursor-not-allowed opacity-50'
               }`}
+              title={!canExportExcel ? 'Permission d’export Excel requise.' : !hasFilteredResults ? 'Aucun résultat à exporter pour ces filtres.' : 'Exporter en Excel'}
             >
               <FileSpreadsheet size={16} /> Excel
             </button>
@@ -658,12 +703,18 @@ export default function BureauChanges() {
       </div>
 
       {/* Formulaire création/modification */}
-      {(canCreate || (canModify && editing)) && (
+      {(editing ? canModify : canCreate) && (
+        <FormModal
+          open={formModalOpen}
+          onClose={closeFormModal}
+          title={editing ? 'Modifier le bureau de change' : 'Ajouter un bureau de change'}
+          subtitle="Complétez les informations administratives et les coordonnées du bureau."
+          editing={Boolean(editing)}
+          closeOnEscape={!submitConfirm}
+          size="max-w-4xl"
+        >
         <form onSubmit={(e) => { e.preventDefault(); setSubmitConfirm(true) }}
-          className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <h3 className="mb-3 text-sm font-bold text-slate-700">
-            {editing ? 'Modifier le bureau de change' : 'Ajouter un bureau de change'}
-          </h3>
+          className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4 sm:p-5">
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             <div>
               <label className="block text-sm font-medium text-slate-700">
@@ -739,19 +790,16 @@ export default function BureauChanges() {
             </div>
           </div>
 
-          <div className="mt-3 flex gap-2">
+          <div className="mt-5 flex flex-col-reverse justify-end gap-2 border-t border-slate-200 pt-4 sm:flex-row">
+            <button type="button" onClick={closeFormModal} className="btn btn-secondary">
+              Annuler
+            </button>
             <button className="btn btn-primary">
               <Plus size={16} /> {editing ? 'Enregistrer' : 'Ajouter'}
             </button>
-            {editing && (
-              <button type="button"
-                onClick={() => { setEditing(null); setForm(emptyForm) }}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
-                Annuler
-              </button>
-            )}
           </div>
         </form>
+        </FormModal>
       )}
 
       {(canArchive || canValidate) && (
@@ -881,6 +929,7 @@ export default function BureauChanges() {
         open={reviewModal.open}
         item={reviewModal.item}
         fieldLabels={BUREAU_FIELD_LABELS}
+        canApprove={isAdminRole || reviewModal.item?.modification_proposee_par !== user?.id}
         onConfirm={async () => {
           const id = reviewModal.item?.id
           setReviewModal({ open: false, item: null })

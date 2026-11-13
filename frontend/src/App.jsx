@@ -49,7 +49,14 @@ export default function App() {
             <Route path="profile" element={<Profile />} />
 
             <Route path="fixings"
-              element={<ProtectedRoute permission="creer_fixing" />}>
+              element={<ProtectedRoute permissions={[
+                'creer_fixing',
+                'modifier_fixing',
+                'valider_fixing',
+                'rejeter_fixing',
+                'consulter_fixing',
+                'approuver_modification_fixing',
+              ]} />}>
               <Route index element={<Fixings />} />
             </Route>
 

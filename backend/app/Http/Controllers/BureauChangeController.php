@@ -140,6 +140,13 @@ class BureauChangeController extends Controller
             ], 422);
         }
 
+        // Seul un administrateur peut approuver sa propre proposition.
+        if (!auth()->user()->isAdmin() && auth()->id() === $bureauChange->modification_proposee_par) {
+            return response()->json([
+                'message' => 'Vous ne pouvez pas approuver vos propres modifications.'
+            ], 403);
+        }
+
         $newStatut = $bureauChange->statut === 'rejete' ? 'en_attente' : $bureauChange->statut;
 
         $bureauChange->update([

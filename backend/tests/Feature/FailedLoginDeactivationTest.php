@@ -76,4 +76,32 @@ class FailedLoginDeactivationTest extends TestCase
 
         $this->assertSame(0, $user->fresh()->failed_login_attempts);
     }
+
+    public function test_failed_login_attempts_for_another_account_do_not_block_admin_login(): void
+    {
+        $agent = User::create([
+            'nom' => 'Agent Test',
+            'email' => 'agent-rate-limit@example.com',
+            'password' => 'correct-password',
+            'is_active' => true,
+        ]);
+        $admin = User::create([
+            'nom' => 'Admin Test',
+            'email' => 'admin-rate-limit@example.com',
+            'password' => 'admin-correct-password',
+            'is_active' => true,
+        ]);
+
+        foreach (range(1, 5) as $attempt) {
+            $this->postJson('/api/auth/login', [
+                'email' => $agent->email,
+                'password' => 'incorrect-password',
+            ])->assertUnprocessable();
+        }
+
+        $this->postJson('/api/auth/login', [
+            'email' => $admin->email,
+            'password' => 'admin-correct-password',
+        ])->assertOk();
+    }
 }

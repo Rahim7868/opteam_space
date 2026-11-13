@@ -155,11 +155,8 @@ class UserController extends Controller
             ], 422);
         }
 
-        // Exception pour l'admin : peut s'auto-approuver
-        $isAdmin = auth()->user()->hasPermission('creer_acteurs') && auth()->user()->hasPermission('modifier_acteurs');
-
-        // Empêcher l'auto-approbation pour les utilisateurs qui ne sont PAS admin
-        if (!$isAdmin && auth()->id() === $user->modification_proposee_par) {
+        // Seul un administrateur peut approuver sa propre proposition.
+        if (!auth()->user()->isAdmin() && auth()->id() === $user->modification_proposee_par) {
             return response()->json([
                 'message' => 'Vous ne pouvez pas approuver vos propres modifications.'
             ], 403);
@@ -203,11 +200,8 @@ class UserController extends Controller
             ], 422);
         }
 
-        // Exception pour l'admin : peut s'auto-approuver (et auto-rejeter)
-        $isAdmin = auth()->user()->hasPermission('creer_acteurs') && auth()->user()->hasPermission('modifier_acteurs');
-
-        // Empêcher l'auto-approbation pour les utilisateurs qui ne sont PAS admin
-        if (!$isAdmin && auth()->id() === $user->modification_proposee_par) {
+        // Seul un administrateur peut gérer ses propres propositions.
+        if (!auth()->user()->isAdmin() && auth()->id() === $user->modification_proposee_par) {
             return response()->json([
                 'message' => 'Vous ne pouvez pas rejeter vos propres modifications.'
             ], 403);

@@ -4,12 +4,29 @@ namespace App\Http\Controllers;
 
 use App\Models\Fixing;
 use App\Models\BureauChange;
+use DateTimeZone;
 use Illuminate\Http\Request;
 use PDF;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ExportController extends Controller
 {
+    private function exportMetadata(Request $request): array
+    {
+        $requestedTimezone = $request->input('timezone');
+        $timezone = is_string($requestedTimezone)
+            && in_array($requestedTimezone, DateTimeZone::listIdentifiers(DateTimeZone::ALL_WITH_BC), true)
+                ? $requestedTimezone
+                : config('app.timezone');
+        $exportedAt = now()->setTimezone($timezone);
+
+        return [
+            'date_export' => $exportedAt->format('d/m/Y H:i:s'),
+            'auteur_export' => auth()->user()->nom,
+            'filename_date' => $exportedAt->format('Y-m-d'),
+        ];
+    }
+
     // EXPORT FIXINGS PDF
     public function exportFixingsPdf(Request $request)
     {
@@ -60,16 +77,18 @@ class ExportController extends Controller
             return $fixing;
         });
 
+        $metadata = $this->exportMetadata($request);
         $data = [
             'fixings' => $fixings,
-            'date_export' => now()->format('d/m/Y H:i'),
+            'date_export' => $metadata['date_export'],
+            'auteur_export' => $metadata['auteur_export'],
             'total' => $fixings->count(),
         ];
 
         $pdf = PDF::loadView('exports.fixings_pdf', $data);
         $pdf->setPaper('A4', 'landscape');
 
-        return $pdf->download('fixings_' . now()->format('Y-m-d') . '.pdf');
+        return $pdf->download('fixings_' . $metadata['filename_date'] . '.pdf');
     }
 
     // EXPORT FIXINGS EXCEL
@@ -122,9 +141,15 @@ class ExportController extends Controller
             return $fixing;
         });
 
+        $metadata = $this->exportMetadata($request);
+
         return Excel::download(
-            new \App\Exports\FixingsExport($fixings),
-            'fixings_' . now()->format('Y-m-d') . '.xlsx'
+            new \App\Exports\FixingsExport(
+                $fixings,
+                $metadata['date_export'],
+                $metadata['auteur_export']
+            ),
+            'fixings_' . $metadata['filename_date'] . '.xlsx'
         );
     }
 
@@ -170,16 +195,18 @@ class ExportController extends Controller
 
         $bureauChanges = $query->get();
 
+        $metadata = $this->exportMetadata($request);
         $data = [
             'bureauChanges' => $bureauChanges,
-            'date_export' => now()->format('d/m/Y H:i'),
+            'date_export' => $metadata['date_export'],
+            'auteur_export' => $metadata['auteur_export'],
             'total' => $bureauChanges->count(),
         ];
 
         $pdf = PDF::loadView('exports.bureau_changes_pdf', $data);
         $pdf->setPaper('A4', 'landscape');
 
-        return $pdf->download('bureaux_change_' . now()->format('Y-m-d') . '.pdf');
+        return $pdf->download('bureaux_change_' . $metadata['filename_date'] . '.pdf');
     }
 
     // EXPORT BUREAUX DE CHANGE EXCEL
@@ -224,9 +251,15 @@ class ExportController extends Controller
 
         $bureauChanges = $query->get();
 
+        $metadata = $this->exportMetadata($request);
+
         return Excel::download(
-            new \App\Exports\BureauChangesExport($bureauChanges),
-            'bureaux_change_' . now()->format('Y-m-d') . '.xlsx'
+            new \App\Exports\BureauChangesExport(
+                $bureauChanges,
+                $metadata['date_export'],
+                $metadata['auteur_export']
+            ),
+            'bureaux_change_' . $metadata['filename_date'] . '.xlsx'
         );
     }
 }

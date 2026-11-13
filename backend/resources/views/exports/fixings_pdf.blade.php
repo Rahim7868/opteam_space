@@ -58,7 +58,7 @@
 <body>
     <h1>📊 Liste des Fixings</h1>
     <div class="info">
-        Exporté le {{ $date_export }} — Total : {{ $total }} fixings
+        Total : {{ $total }} fixings
     </div>
 
     <table>
@@ -105,7 +105,7 @@
     </table>
 
     <div class="footer">
-        @generated {{ now()->format('d/m/Y H:i:s') }}
+        Exporté le {{ $date_export }} par {{ $auteur_export }}
     </div>
 </body>
 </html>

@@ -155,6 +155,11 @@ class User extends Authenticatable
         return $this->toutesLesPermissions()->contains($libelle);
     }
 
+    public function isAdmin(): bool
+    {
+        return $this->role?->libelle === 'Admin';
+    }
+
     public function isActive(): bool
     {
         return $this->is_active === true;

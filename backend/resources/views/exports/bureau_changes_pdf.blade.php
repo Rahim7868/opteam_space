@@ -56,7 +56,7 @@
 <body>
     <h1>Liste des Bureaux de change</h1>
     <div class="info">
-        Exporte le {{ $date_export }} — Total : {{ $total }} bureaux
+        Total : {{ $total }} bureaux
     </div>
 
     <table>
@@ -101,7 +101,7 @@
     </table>
 
     <div class="footer">
-        @generated {{ now()->format('d/m/Y H:i:s') }}
+        Exporté le {{ $date_export }} par {{ $auteur_export }}
     </div>
 </body>
 </html>

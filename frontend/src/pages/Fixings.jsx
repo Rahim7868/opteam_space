@@ -1,4 +1,4 @@
-import { Check, Edit, Eye, FileDown, FileSpreadsheet, MessageSquare, Plus, Search, X, RefreshCw } from 'lucide-react'
+import { Check, Edit, Eye, FileDown, FileSpreadsheet, MessageSquare, Plus, X, RefreshCw } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import api, { getApiError } from '../api/client'
@@ -14,6 +14,7 @@ import { useAuth } from '../context/AuthContext'
 import ModificationReviewModal, { FIXING_FIELD_LABELS } from '../components/ModificationReviewModal'
 import { RejectReasonModal, ViewReasonModal } from '../components/RejectReasonModal'
 import DetailModal, { formatDate, formatDateOnly } from '../components/DetailModal'
+import FormModal from '../components/FormModal'
 
 const emptyForm = {
   date_fixing: new Date().toISOString().slice(0, 10),
@@ -23,6 +24,10 @@ const emptyForm = {
 }
 
 const currencies = ['EUR', 'USD', 'GBP', 'CAD', 'CHF', 'XOF']
+
+function appendExportTimezone(params) {
+  params.append('timezone', Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC')
+}
 
 function formatAmount(value) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) return 'N/A'
@@ -49,6 +54,7 @@ export default function Fixings() {
   const canApprouverModification = hasPermission('approuver_modification_fixing')
 
   // Admin peut modifier les fixings des autres
+  const isAdminRole = user?.role?.libelle === 'Admin'
   const isAdmin = user?.role?.libelle === 'Admin' || (hasPermission('creer_acteurs') && hasPermission('modifier_acteurs'))
   const requestedEdit = location.state?.editFixing
   const initialEditForm = requestedEdit ? {
@@ -61,12 +67,20 @@ export default function Fixings() {
   const [rows, setRows]           = useState([])
   const [chartRows, setChartRows] = useState([])
   const [meta, setMeta]           = useState(null)
+  const [loadedFilterKey, setLoadedFilterKey] = useState(null)
   const [loading, setLoading]     = useState(true)
   const [chartLoading, setChartLoading] = useState(true)
   const defaultFilters = { statut: '', devise: '', date_debut: '', date_fin: '', createur_id: '', page: 1 }
   const [filters, setFilters]     = useState(defaultFilters)
+  const currentFilterKey = JSON.stringify(
+    Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ''))
+  )
+  const hasFilteredResults = !loading
+    && loadedFilterKey === currentFilterKey
+    && Number(meta?.total ?? 0) > 0
   const [form, setForm]           = useState(initialEditForm ?? emptyForm)
   const [editingId, setEditingId] = useState(requestedEdit?.id ?? null)
+  const [formModalOpen, setFormModalOpen] = useState(Boolean(requestedEdit))
   const [error, setError]         = useState('')
   const [success, setSuccess]     = useState('')
   const originalForm = useRef(initialEditForm ? { ...initialEditForm } : null)
@@ -91,15 +105,31 @@ export default function Fixings() {
     setFilters(defaultFilters)
   }
 
+  function openCreateModal() {
+    setEditingId(null)
+    setForm({ ...emptyForm })
+    originalForm.current = null
+    setError('')
+    setFormModalOpen(true)
+  }
+
+  function closeFormModal() {
+    setFormModalOpen(false)
+    setEditingId(null)
+    setForm({ ...emptyForm })
+    originalForm.current = null
+  }
+
   // Exports
   function exportPdf() {
-    if (!canExportPdf) return
+    if (!canExportPdf || !hasFilteredResults) return
     const params = new URLSearchParams()
     if (filters.statut) params.append('statut', filters.statut)
     if (filters.devise) params.append('devise', filters.devise)
     if (filters.date_debut) params.append('date_debut', filters.date_debut)
     if (filters.date_fin) params.append('date_fin', filters.date_fin)
     if (filters.createur_id) params.append('createur_id', filters.createur_id)
+    appendExportTimezone(params)
 
     api.get(`/export/fixings-pdf?${params.toString()}`, {
       responseType: 'blob'
@@ -120,13 +150,14 @@ export default function Fixings() {
   }
 
   function exportExcel() {
-    if (!canExportExcel) return
+    if (!canExportExcel || !hasFilteredResults) return
     const params = new URLSearchParams()
     if (filters.statut) params.append('statut', filters.statut)
     if (filters.devise) params.append('devise', filters.devise)
     if (filters.date_debut) params.append('date_debut', filters.date_debut)
     if (filters.date_fin) params.append('date_fin', filters.date_fin)
     if (filters.createur_id) params.append('createur_id', filters.createur_id)
+    appendExportTimezone(params)
 
     api.get(`/export/fixings-excel?${params.toString()}`, {
       responseType: 'blob'
@@ -152,8 +183,13 @@ export default function Fixings() {
     const params = Object.fromEntries(
       Object.entries(filters).filter(([, v]) => v !== '')
     )
+    const filterKey = JSON.stringify(params)
     api.get('/fixings', { params })
-      .then(({ data }) => { setRows(data.data); setMeta(data.meta) })
+      .then(({ data }) => {
+        setRows(data.data)
+        setMeta(data.meta)
+        setLoadedFilterKey(filterKey)
+      })
       .finally(() => setLoading(false))
   }
 
@@ -179,7 +215,7 @@ export default function Fixings() {
     setSuccess('')
 
     if (editingId && JSON.stringify(form) === JSON.stringify(originalForm.current)) {
-      setEditingId(null); setForm(emptyForm)
+      closeFormModal()
       return
     }
 
@@ -200,6 +236,7 @@ export default function Fixings() {
         }
         setSuccess('Fixing créé avec succès.')
       }
+      setFormModalOpen(false)
       setForm(emptyForm)
       load()
       loadChartData()
@@ -267,7 +304,8 @@ export default function Fixings() {
     }
     setForm(formData)
     originalForm.current = { ...formData }
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    setError('')
+    setFormModalOpen(true)
   }
 
   // Colonnes
@@ -397,25 +435,32 @@ export default function Fixings() {
         }
         action={
           <div className="flex gap-2">
+            {canCreate && (
+              <button onClick={openCreateModal} className="btn btn-primary">
+                <Plus size={16} /> Ajouter un fixing
+              </button>
+            )}
             <button
               onClick={exportPdf}
-              disabled={!canExportPdf}
+              disabled={!canExportPdf || !hasFilteredResults}
               className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all ${
-                canExportPdf
+                canExportPdf && hasFilteredResults
                   ? 'bg-red-500 hover:bg-red-600 hover:shadow-md cursor-pointer'
                   : 'bg-gray-400 cursor-not-allowed opacity-50'
               }`}
+              title={!canExportPdf ? 'Permission d’export PDF requise.' : !hasFilteredResults ? 'Aucun résultat à exporter pour ces filtres.' : 'Exporter en PDF'}
             >
               <FileDown size={16} /> PDF
             </button>
             <button
               onClick={exportExcel}
-              disabled={!canExportExcel}
+              disabled={!canExportExcel || !hasFilteredResults}
               className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all ${
-                canExportExcel
+                canExportExcel && hasFilteredResults
                   ? 'bg-green-600 hover:bg-green-700 hover:shadow-md cursor-pointer'
                   : 'bg-gray-400 cursor-not-allowed opacity-50'
               }`}
+              title={!canExportExcel ? 'Permission d’export Excel requise.' : !hasFilteredResults ? 'Aucun résultat à exporter pour ces filtres.' : 'Exporter en Excel'}
             >
               <FileSpreadsheet size={16} /> Excel
             </button>
@@ -484,11 +529,22 @@ export default function Fixings() {
       </div>
 
       {/* Formulaire création/modification */}
-      {(canCreate || (canModify && editingId)) && (
+      {(editingId ? canModify : canCreate) && (
+        <FormModal
+          open={formModalOpen}
+          onClose={closeFormModal}
+          title={editingId ? 'Modifier le fixing' : 'Ajouter un fixing'}
+          subtitle="Renseignez les informations du cours et joignez un justificatif si nécessaire."
+          editing={Boolean(editingId)}
+          closeOnEscape={!submitConfirm && !duplicateModal}
+          size="max-w-3xl"
+        >
         <form
           onSubmit={(e) => { e.preventDefault(); setSubmitConfirm(true) }}
-          className="panel animate-enter mb-5 grid gap-3 p-5 md:grid-cols-4"
+          className="grid gap-4 md:grid-cols-2"
         >
+          <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+            Date du fixing
           <input
             type="date"
             className="field"
@@ -496,6 +552,9 @@ export default function Fixings() {
             onChange={(e) => setForm({ ...form, date_fixing: e.target.value })}
             required
           />
+          </label>
+          <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+            Devise
           <select
             className="field"
             value={form.devise}
@@ -504,6 +563,9 @@ export default function Fixings() {
           >
             {currencies.map((c) => <option key={c}>{c}</option>)}
           </select>
+          </label>
+          <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+            Cours
           <input
             className="field"
             placeholder="Cours (ex: 655.957) *"
@@ -511,28 +573,39 @@ export default function Fixings() {
             onChange={(e) => setForm({ ...form, cours: e.target.value })}
             required
           />
-          <input
-            type="file"
-            className="field"
-            accept=".pdf,.jpg,.jpeg,.png"
-            onChange={(e) => setForm({ ...form, piece_jointe: e.target.files[0] })}
-          />
-          <div className="col-span-full flex gap-2">
-            <button className="btn btn-primary flex-1">
+          </label>
+          <div className="grid gap-1.5 text-sm font-medium text-slate-700">
+            <span>
+              Pièce jointe <span className="font-normal text-slate-400">(facultatif)</span>
+            </span>
+            <input
+              id="fixing-attachment"
+              type="file"
+              className="peer sr-only"
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={(e) => setForm({ ...form, piece_jointe: e.target.files[0] })}
+            />
+            <label
+              htmlFor="fixing-attachment"
+              className="field flex cursor-pointer items-center justify-between gap-3 peer-focus-visible:ring-4 peer-focus-visible:ring-teal-100"
+            >
+              <span className={form.piece_jointe ? 'truncate' : 'text-slate-500'}>
+                {form.piece_jointe?.name || 'Choisissez un fichier !'}
+              </span>
+              <span className="shrink-0 text-xs font-semibold text-teal-700">Parcourir</span>
+            </label>
+          </div>
+          <div className="col-span-full mt-2 flex flex-col-reverse justify-end gap-2 border-t border-slate-100 pt-4 sm:flex-row">
+            <button type="button" onClick={closeFormModal} className="btn btn-secondary">
+              Annuler
+            </button>
+            <button className="btn btn-primary">
               <Plus size={16} />
               {editingId ? 'Enregistrer les modifications' : 'Ajouter un fixing'}
             </button>
-            {editingId && (
-              <button
-                type="button"
-                onClick={() => { setEditingId(null); setForm(emptyForm) }}
-                className="btn btn-secondary"
-              >
-                Annuler
-              </button>
-            )}
           </div>
         </form>
+        </FormModal>
       )}
 
       <DataTable
@@ -591,6 +664,7 @@ export default function Fixings() {
         open={reviewModal.open}
         item={reviewModal.item}
         fieldLabels={FIXING_FIELD_LABELS}
+        canApprove={isAdminRole || reviewModal.item?.modification_proposee_par !== user?.id}
         onConfirm={async () => {
           const id = reviewModal.item?.id
           setReviewModal({ open: false, item: null })
@@ -613,7 +687,7 @@ export default function Fixings() {
             </p>
             <div className="mt-6 flex justify-end">
               <button
-                onClick={() => { setDuplicateModal(false); setForm(emptyForm) }}
+                onClick={() => { setDuplicateModal(false); closeFormModal() }}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition"
               >
                 Voir la liste des fixings

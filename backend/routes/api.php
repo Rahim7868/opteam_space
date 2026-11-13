@@ -19,8 +19,8 @@ use App\Http\Controllers\ForgotPasswordController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth publique avec rate limiting strict ────────────────────
-//Maximum 5 tentatives par minute par IP
-Route::middleware('throttle:5,1')->group(function () {
+// Limites par adresse IP et adresse email pour ne pas pénaliser les autres comptes.
+Route::middleware('throttle:login')->group(function () {
     Route::post('/auth/login', [AuthController::class, 'login']);
 });
 

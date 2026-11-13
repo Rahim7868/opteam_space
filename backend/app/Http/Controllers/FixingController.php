@@ -151,8 +151,8 @@ class FixingController extends Controller
             ], 422);
         }
 
-        // Empêcher l'auto-approbation
-        if (auth()->id() === $fixing->modification_proposee_par) {
+        // Seul un administrateur peut approuver sa propre proposition.
+        if (!auth()->user()->isAdmin() && auth()->id() === $fixing->modification_proposee_par) {
             return response()->json([
                 'message' => 'Vous ne pouvez pas approuver vos propres modifications.'
             ], 403);

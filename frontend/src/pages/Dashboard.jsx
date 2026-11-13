@@ -1,10 +1,10 @@
 import { Building2, Check, CheckCircle, ClipboardList, Clock, Edit, Eye, MessageSquare, Users, X, XCircle } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
 import DetailModal, { formatDate, formatDateOnly } from '../components/DetailModal'
 import ErrorAlert from '../components/ErrorAlert'
+import FormModal from '../components/FormModal'
 import IconActionButton from '../components/IconActionButton'
 import ModificationReviewModal, { FIXING_FIELD_LABELS } from '../components/ModificationReviewModal'
 import PageHeader from '../components/PageHeader'
@@ -12,6 +12,13 @@ import { RejectReasonModal, ViewReasonModal } from '../components/RejectReasonMo
 import StatusBadge from '../components/StatusBadge'
 import SuccessAlert from '../components/SuccessAlert'
 import { useAuth } from '../context/AuthContext'
+
+const emptyFixingForm = {
+  date_fixing: new Date().toISOString().slice(0, 10),
+  devise: 'EUR',
+  cours: '',
+  piece_jointe: null,
+}
 
 // ── Carte stat ─────────────────────────────────────────────────
 function StatCard({ label, value, icon: Icon, color, loading }) {
@@ -148,7 +155,6 @@ function ListSkeleton({ rows = 4 }) {
 // ── Page principale ────────────────────────────────────────────
 export default function Dashboard() {
   const { user, hasPermission } = useAuth()
-  const navigate = useNavigate()
   const [stats, setStats]       = useState({})
   const [loading, setLoading]   = useState(true)
   const [reloadVersion, setReloadVersion] = useState(0)
@@ -159,6 +165,10 @@ export default function Dashboard() {
   const [validateConfirm, setValidateConfirm] = useState({ open: false, id: null })
   const [rejectConfirm, setRejectConfirm] = useState({ open: false, id: null })
   const [viewReasonModal, setViewReasonModal] = useState({ open: false, reason: '' })
+  const [editingFixing, setEditingFixing] = useState(null)
+  const [editForm, setEditForm] = useState(emptyFixingForm)
+  const originalEditForm = useRef(null)
+  const [editConfirm, setEditConfirm] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -180,6 +190,7 @@ export default function Dashboard() {
   const canValidate = hasPermission('valider_fixing')
   const canReject = hasPermission('rejeter_fixing')
   const canApproveModification = hasPermission('approuver_modification_fixing')
+  const isAdminRole = user?.role?.libelle === 'Admin'
   const isAdmin = user?.role?.libelle === 'Admin'
     || (hasPermission('creer_acteurs') && hasPermission('modifier_acteurs'))
 
@@ -190,6 +201,54 @@ export default function Dashboard() {
     try {
       const { data } = await api.post(`/fixings/${id}/${action}`, payload ?? {})
       setSuccess(data?.message || successMessage)
+      setLoading(true)
+      setReloadVersion((version) => version + 1)
+    } catch (requestError) {
+      setError(getApiError(requestError))
+    }
+  }
+
+  function startEditFixing(fixing) {
+    const formData = {
+      date_fixing: fixing.date_fixing,
+      devise: fixing.devise,
+      cours: String(fixing.cours ?? ''),
+      piece_jointe: null,
+    }
+
+    setDetailModal({ open: false, item: null })
+    setEditingFixing(fixing)
+    setEditForm(formData)
+    originalEditForm.current = { ...formData }
+    setError('')
+  }
+
+  function closeEditModal() {
+    setEditingFixing(null)
+    setEditForm({ ...emptyFixingForm })
+    originalEditForm.current = null
+  }
+
+  async function submitFixingEdit() {
+    if (!canModify || !editingFixing) return
+    setError('')
+    setSuccess('')
+
+    if (JSON.stringify(editForm) === JSON.stringify(originalEditForm.current)) {
+      closeEditModal()
+      return
+    }
+
+    const payload = new FormData()
+    Object.entries(editForm).forEach(([key, value]) => {
+      if (value) payload.append(key, value)
+    })
+    payload.append('_method', 'PUT')
+
+    try {
+      const { data } = await api.post(`/fixings/${editingFixing.id}`, payload)
+      closeEditModal()
+      setSuccess(data?.message || 'Modifications proposées. En attente de validation.')
       setLoading(true)
       setReloadVersion((version) => version + 1)
     } catch (requestError) {
@@ -296,7 +355,7 @@ export default function Dashboard() {
                   canApproveModification={canApproveModification}
                   onView={(item) => setDetailModal({ open: true, item })}
                   onViewModifications={(item) => setReviewModal({ open: true, item })}
-                  onEdit={(item) => navigate('/fixings', { state: { editFixing: item } })}
+                  onEdit={startEditFixing}
                   onValidate={(id) => setValidateConfirm({ open: true, id })}
                   onReject={(id) => setRejectConfirm({ open: true, id })}
                   onViewReason={(reason) => setViewReasonModal({ open: true, reason })}
@@ -374,6 +433,104 @@ export default function Dashboard() {
         </div>
       )}
 
+      <FormModal
+        open={Boolean(editingFixing)}
+        onClose={closeEditModal}
+        title="Modifier le fixing"
+        subtitle="Renseignez le cours et joignez un justificatif si nécessaire."
+        editing
+        closeOnEscape={!editConfirm}
+        size="max-w-3xl"
+      >
+        {error && (
+          <div role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+            {error}
+          </div>
+        )}
+        <form
+          onSubmit={(event) => {
+            event.preventDefault()
+            setEditConfirm(true)
+          }}
+          className="grid gap-4 md:grid-cols-2"
+        >
+          <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+            Date du fixing
+            <input
+              type="date"
+              className="field"
+              value={editForm.date_fixing}
+              onChange={(event) => setEditForm({ ...editForm, date_fixing: event.target.value })}
+              required
+            />
+          </label>
+          <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+            Devise
+            <select
+              className="field"
+              value={editForm.devise}
+              onChange={(event) => setEditForm({ ...editForm, devise: event.target.value })}
+              required
+            >
+              {['EUR', 'USD', 'GBP', 'CAD', 'CHF', 'XOF'].map((currency) => (
+                <option key={currency}>{currency}</option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+            Cours
+            <input
+              className="field"
+              placeholder="Cours (ex: 655.957) *"
+              value={editForm.cours}
+              onChange={(event) => setEditForm({ ...editForm, cours: event.target.value })}
+              required
+            />
+          </label>
+          <div className="grid gap-1.5 text-sm font-medium text-slate-700">
+            <span>
+              Pièce jointe <span className="font-normal text-slate-400">(facultatif)</span>
+            </span>
+            <input
+              id="dashboard-fixing-attachment"
+              type="file"
+              className="peer sr-only"
+              accept=".pdf,.jpg,.jpeg,.png"
+              onChange={(event) => setEditForm({ ...editForm, piece_jointe: event.target.files[0] })}
+            />
+            <label
+              htmlFor="dashboard-fixing-attachment"
+              className="field flex cursor-pointer items-center justify-between gap-3 peer-focus-visible:ring-4 peer-focus-visible:ring-teal-100"
+            >
+              <span className={editForm.piece_jointe ? 'truncate' : 'text-slate-500'}>
+                {editForm.piece_jointe?.name || 'Choisissez un fichier !'}
+              </span>
+              <span className="shrink-0 text-xs font-semibold text-teal-700">Parcourir</span>
+            </label>
+          </div>
+          <div className="col-span-full mt-2 flex flex-col-reverse justify-end gap-2 border-t border-slate-100 pt-4 sm:flex-row">
+            <button type="button" onClick={closeEditModal} className="btn btn-secondary">
+              Annuler
+            </button>
+            <button className="btn btn-primary">
+              <Check size={16} /> Enregistrer les modifications
+            </button>
+          </div>
+        </form>
+      </FormModal>
+
+      <ConfirmModal
+        open={editConfirm}
+        title="Confirmer la modification ?"
+        message="Les modifications seront proposées et soumises à validation."
+        confirmText="Enregistrer"
+        onConfirm={async () => {
+          setEditConfirm(false)
+          await submitFixingEdit()
+        }}
+        onCancel={() => setEditConfirm(false)}
+      />
+
       <ConfirmModal
         open={validateConfirm.open}
         title="Confirmer la validation ?"
@@ -410,6 +567,7 @@ export default function Dashboard() {
         open={reviewModal.open}
         item={reviewModal.item}
         fieldLabels={FIXING_FIELD_LABELS}
+        canApprove={isAdminRole || reviewModal.item?.modification_proposee_par !== user?.id}
         onConfirm={async () => {
           const id = reviewModal.item?.id
           setReviewModal({ open: false, item: null })
@@ -525,7 +683,7 @@ export default function Dashboard() {
                     onClick={() => {
                       const item = detailModal.item
                       setDetailModal({ open: false, item: null })
-                      navigate('/fixings', { state: { editFixing: item } })
+                      startEditFixing(item)
                     }}
                   />
                 )}

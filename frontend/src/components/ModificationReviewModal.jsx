@@ -106,6 +106,8 @@ export default function ModificationReviewModal({
   onConfirm,
   onReject,
   onClose,
+  canApprove = true,
+  canReject = true,
 }) {
   const [confirmModal, setConfirmModal] = useState(false)
   const [rejectModal, setRejectModal] = useState(false)
@@ -243,20 +245,30 @@ export default function ModificationReviewModal({
             )}
           </div>
 
-          {proposedKeys.length > 0 && (
+          {proposedKeys.length > 0 && !canApprove && (
+            <p className="px-6 pb-4 text-sm text-slate-500">
+              Seul un administrateur peut approuver ses propres modifications.
+            </p>
+          )}
+
+          {proposedKeys.length > 0 && (canApprove || canReject) && (
             <div className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">
-              <button
-                onClick={() => setRejectModal(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-rose-50 px-5 py-2.5 text-sm font-semibold text-rose-700 ring-1 ring-rose-200 transition hover:bg-rose-100"
-              >
-                <X size={16} /> Annuler les modifications
-              </button>
-              <button
-                onClick={() => setConfirmModal(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
-              >
-                <Check size={16} /> Confirmer les modifications
-              </button>
+              {canReject && (
+                <button
+                  onClick={() => setRejectModal(true)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-rose-50 px-5 py-2.5 text-sm font-semibold text-rose-700 ring-1 ring-rose-200 transition hover:bg-rose-100"
+                >
+                  <X size={16} /> Annuler les modifications
+                </button>
+              )}
+              {canApprove ? (
+                <button
+                  onClick={() => setConfirmModal(true)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
+                >
+                  <Check size={16} /> Confirmer les modifications
+                </button>
+              ) : null}
             </div>
           )}
         </div>

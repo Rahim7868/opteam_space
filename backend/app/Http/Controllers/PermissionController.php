@@ -17,7 +17,29 @@ class PermissionController extends Controller
         }
 
         return PermissionResource::collection(
-            Permission::all()
+            Permission::query()
+                ->orderByRaw("
+                    CASE
+                        WHEN LOWER(libelle) LIKE '%fixing%' THEN 0
+                        WHEN LOWER(libelle) LIKE '%bureau%' THEN 1
+                        WHEN LOWER(libelle) LIKE '%acteur%'
+                            OR LOWER(libelle) LIKE '%utilisateur%'
+                            OR LOWER(libelle) LIKE '%user%' THEN 2
+                        WHEN LOWER(libelle) LIKE '%role%'
+                            OR LOWER(libelle) LIKE '%permission%' THEN 3
+                        WHEN LOWER(libelle) LIKE '%agence%'
+                            OR LOWER(libelle) LIKE '%direction%'
+                            OR LOWER(libelle) LIKE '%departement%'
+                            OR LOWER(libelle) LIKE '%service%'
+                            OR LOWER(libelle) LIKE '%local%' THEN 4
+                        WHEN LOWER(libelle) LIKE '%audit%'
+                            OR LOWER(libelle) LIKE '%log%' THEN 5
+                        ELSE 6
+                    END
+                ")
+                ->orderByRaw('LOWER(libelle) ASC')
+                ->orderBy('libelle')
+                ->get()
         );
     }
 
@@ -68,6 +90,15 @@ class PermissionController extends Controller
     {
         if (!auth()->user()->hasPermission('gerer_permissions')) {
             abort(403, 'Permission refusée.');
+        }
+
+        if (
+            $permission->users()->exists()
+            || $permission->roles()->whereHas('users')->exists()
+        ) {
+            return response()->json([
+                'message' => 'Impossible de supprimer : cette permission est attribuée directement à un utilisateur ou via le rôle d\'un utilisateur.',
+            ], 422);
         }
 
         AuditLogger::forModel('permission_deleted', $permission, 'Suppression permission : ' . $permission->libelle);

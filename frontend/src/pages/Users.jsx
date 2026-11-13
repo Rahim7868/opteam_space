@@ -13,6 +13,7 @@ import { useAuth } from '../context/AuthContext'
 import DetailModal, { formatDate } from '../components/DetailModal'
 import DeactivateUserModal from '../components/DeactivateUserModal'
 import DeactivatedUsersModal from '../components/DeactivatedUsersModal'
+import FormModal from '../components/FormModal'
 
 const USER_FIELD_LABELS = {
   nom: 'Nom',
@@ -56,6 +57,7 @@ export default function Users() {
   const [filters, setFilters] = useState(defaultFilters)
   const [form, setForm]       = useState(emptyForm)
   const [editing, setEditing] = useState(null)
+  const [formModalOpen, setFormModalOpen] = useState(false)
   const [error, setError]     = useState('')
   const [success, setSuccess] = useState('')
   const originalForm          = useRef(null)
@@ -162,11 +164,19 @@ export default function Users() {
   }
 
   function resetForm() {
+    setFormModalOpen(false)
     setForm(emptyForm)
     setDirections([])
     setDepartements([])
     setServices([])
     setEditing(null)
+    originalForm.current = null
+  }
+
+  function openCreateModal() {
+    resetForm()
+    setError('')
+    setFormModalOpen(true)
   }
 
   async function submit() {
@@ -220,6 +230,11 @@ export default function Users() {
 
   async function startEdit(user) {
     setEditing(user.id)
+    setFormModalOpen(false)
+    setDirections([])
+    setDepartements([])
+    setServices([])
+    setError('')
 
     const h = user.hierarchie || {}
 
@@ -260,10 +275,10 @@ export default function Users() {
         setServices([])
       }
     } catch (err) {
-      console.error(err)
+      setError(getApiError(err))
     }
 
-    window.scrollTo({ top: 0, behavior: 'smooth' })
+    setFormModalOpen(true)
   }
 
   // Fonctions d'approbation des modifications
@@ -454,6 +469,11 @@ export default function Users() {
       <PageHeader
         title="Acteurs"
         subtitle="Création et gestion des comptes utilisateurs."
+        action={canCreate && (
+          <button onClick={openCreateModal} className="btn btn-primary">
+            <Plus size={16} /> Créer un acteur
+          </button>
+        )}
       />
 
       <ErrorAlert message={error} onDismiss={() => setError('')} />
@@ -505,8 +525,8 @@ export default function Users() {
         </button>
       </div>
 
-      {/* Bouton comptes désactivés si formulaire non affiché */}
-      {!(editing ? canModify : canCreate) && canDesactivate && (
+      {/* Bouton comptes désactivés */}
+      {canDesactivate && (
         <div className="mb-4 flex justify-end">
           <button
             type="button"
@@ -520,13 +540,19 @@ export default function Users() {
 
       {/* Formulaire */}
       {(editing ? canModify : canCreate) && (
+        <FormModal
+          open={formModalOpen}
+          onClose={resetForm}
+          title={editing ? 'Modifier un acteur' : 'Créer un acteur'}
+          subtitle="Renseignez le profil et son rattachement organisationnel."
+          editing={Boolean(editing)}
+          closeOnEscape={!submitConfirm}
+          size="max-w-4xl"
+        >
         <form
           onSubmit={(e) => { e.preventDefault(); setSubmitConfirm(true) }}
-          className="mb-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+          className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4 sm:p-5"
         >
-          <h3 className="mb-3 text-sm font-bold text-slate-700">
-            {editing ? 'Modifier un acteur' : 'Créer un acteur'}
-          </h3>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             <div>
               <label className="block text-sm font-medium text-slate-700">
@@ -640,32 +666,17 @@ export default function Users() {
             </p>
           )}
 
-          <div className="mt-3 flex items-center justify-between flex-wrap gap-2">
-            <div className="flex gap-2">
-              <button className="btn btn-primary">
-                <Plus size={16} />
-                {editing ? 'Enregistrer les modifications' : "Créer l'acteur"}
-              </button>
-              {editing && (
-                <button type="button"
-                  onClick={resetForm}
-                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">
-                  Annuler
-                </button>
-              )}
-            </div>
-
-            {canDesactivate && (
-              <button
-                type="button"
-                onClick={() => setDeactivatedListOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100 transition cursor-pointer"
-              >
-                <UserX size={14} /> Comptes désactivés
-              </button>
-            )}
+          <div className="mt-5 flex flex-col-reverse justify-end gap-2 border-t border-slate-200 pt-4 sm:flex-row">
+            <button type="button" onClick={resetForm} className="btn btn-secondary">
+              Annuler
+            </button>
+            <button className="btn btn-primary">
+              <Plus size={16} />
+              {editing ? 'Enregistrer les modifications' : "Créer l'acteur"}
+            </button>
           </div>
         </form>
+        </FormModal>
       )}
 
       <DataTable
@@ -796,6 +807,8 @@ export default function Users() {
         item={reviewModal.item}
         fieldLabels={USER_FIELD_LABELS}
         fieldLabels={USER_FIELD_LABELS}
+        canApprove={isAdmin || reviewModal.item?.modification_proposee_par !== user?.id}
+        canReject={isAdmin || reviewModal.item?.modification_proposee_par !== user?.id}
         onConfirm={async () => {
           const id = reviewModal.item?.id
           setReviewModal({ open: false, item: null })

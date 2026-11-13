@@ -38,7 +38,14 @@ export default function AppLayout() {
       to: '/fixings',
       label: 'Fixings',
       icon: ClipboardList,
-      show: hasPermission('creer_fixing') || hasPermission('valider_fixing'),
+      show: [
+        'creer_fixing',
+        'modifier_fixing',
+        'valider_fixing',
+        'rejeter_fixing',
+        'consulter_fixing',
+        'approuver_modification_fixing',
+      ].some((permission) => hasPermission(permission)),
     },
     {
       to: '/bureau-changes',
