@@ -23,24 +23,24 @@ const emptyFixingForm = {
 // ── Carte stat ─────────────────────────────────────────────────
 function StatCard({ label, value, icon: Icon, color, loading }) {
   const colors = {
-    blue:   'bg-blue-500',
-    amber:  'bg-amber-500',
-    emerald:'bg-emerald-500',
-    rose:   'bg-rose-500',
-    indigo: 'bg-indigo-500',
-    violet: 'bg-violet-500',
+    blue: 'border-l-blue-600 text-blue-600',
+    amber: 'border-l-amber-500 text-amber-600',
+    emerald: 'border-l-emerald-500 text-emerald-600',
+    rose: 'border-l-rose-500 text-rose-600',
+    indigo: 'border-l-indigo-600 text-indigo-600',
+    violet: 'border-l-violet-600 text-violet-600',
   }
 
   return (
-    <div className={`${colors[color]} rounded-xl p-5 text-white shadow-sm`}>
+    <div className={`rounded-lg border border-slate-200 border-l-4 bg-white p-5 shadow-sm ${colors[color]}`}>
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-white/80">{label}</span>
-        <Icon size={20} className="text-white/60" />
+        <span className="text-sm font-semibold text-slate-600">{label}</span>
+        <Icon size={20} />
       </div>
       {loading ? (
-        <div className="mt-3 h-9 w-16 animate-pulse rounded-lg bg-white/20" />
+        <div className="mt-3 h-9 w-16 animate-pulse rounded-lg bg-slate-100" />
       ) : (
-        <div className="mt-2 text-3xl font-black">{value ?? 0}</div>
+        <div className="mt-2 text-3xl font-black text-slate-900">{value ?? 0}</div>
       )}
     </div>
   )
@@ -306,7 +306,7 @@ export default function Dashboard() {
     <>
       <PageHeader
         title="Tableau de bord"
-        subtitle={`Bienvenue, ${user?.nom ?? ''}. Vue rapide de l'activité.`}
+        subtitle="Vue rapide de l'activité."
       />
       <ErrorAlert message={error} onDismiss={() => setError('')} />
       <SuccessAlert message={success} onDismiss={() => setSuccess('')} />
@@ -331,7 +331,7 @@ export default function Dashboard() {
       }`}>
 
         {/* Fixings récents */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-base font-bold text-slate-950">
             Fixings récents
           </h2>
@@ -367,7 +367,7 @@ export default function Dashboard() {
 
         {/* Bureaux de change récents (si permission) */}
         {hasPermission('valider_bureau_change') && (
-          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="mb-4 text-base font-bold text-slate-950">
               Bureaux de change récents
             </h2>
@@ -396,7 +396,7 @@ export default function Dashboard() {
 
       {/* ── Audit logs récents (si permission) ────────────── */}
       {hasPermission('modifier_acteurs') && (
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="mb-4 text-base font-bold text-slate-950">
             Activité récente
           </h2>

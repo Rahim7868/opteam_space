@@ -7,6 +7,7 @@ use App\Http\Resources\BureauChangeResource;
 use App\Imports\BureauChangesImport;
 use App\Models\BureauChange;
 use App\Services\AuditLogger;
+use App\Services\WorkflowNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -22,7 +23,11 @@ class BureauChangeController extends Controller
             ->with('createur', 'validateur', 'modificationProposeePar', 'modificationApprouveePar')
             ->latest();
 
-        if (!auth()->user()->hasPermission('consulter_bureau_change')) {
+        if (
+            !auth()->user()->hasPermission('consulter_bureau_change')
+            && !auth()->user()->hasPermission('valider_bureau_change')
+            && !auth()->user()->hasPermission('approuver_modification_bureau')
+        ) {
             $query->where('created_by', auth()->id());
         }
 
@@ -57,19 +62,24 @@ class BureauChangeController extends Controller
         );
     }
 
-    public function store(BureauChangeRequest $request): BureauChangeResource
+    public function store(BureauChangeRequest $request, WorkflowNotificationService $notifications): BureauChangeResource
     {
-        $bureauChange = BureauChange::create([
-            ...$request->validated(),
-            'created_by' => auth()->id(),
-            'statut'     => 'en_attente',
-        ]);
+        $bureauChange = DB::transaction(function () use ($request, $notifications): BureauChange {
+            $bureauChange = BureauChange::create([
+                ...$request->validated(),
+                'created_by' => auth()->id(),
+                'statut'     => 'en_attente',
+            ]);
 
-        AuditLogger::forModel(
-            'bureau_created',
-            $bureauChange,
-            'Création bureau de change : ' . $bureauChange->designation
-        );
+            AuditLogger::forModel(
+                'bureau_created',
+                $bureauChange,
+                'Création bureau de change : ' . $bureauChange->designation
+            );
+            $notifications->bureauChangeSubmitted($bureauChange, $request->user());
+
+            return $bureauChange;
+        });
 
         return new BureauChangeResource($bureauChange->load('createur'));
     }
@@ -81,7 +91,7 @@ class BureauChangeController extends Controller
         );
     }
 
-    public function update(BureauChangeRequest $request, BureauChange $bureauChange): JsonResponse|BureauChangeResource
+    public function update(BureauChangeRequest $request, BureauChange $bureauChange, WorkflowNotificationService $notifications): JsonResponse|BureauChangeResource
     {
         if (!$bureauChange->isEditable()) {
             return response()->json([
@@ -106,19 +116,22 @@ class BureauChangeController extends Controller
             $data['piece_jointe_url'] = Storage::disk('public')->url($filePath);
         }
 
-        $bureauChange->update([
-            'statut_modification' => 'en_attente_validation_modification',
-            'modification_proposee' => $data,
-            'modification_proposee_par' => auth()->id(),
-            'modification_approuvee_par' => null,
-            'modification_approuvee_at' => null,
-        ]);
+        DB::transaction(function () use ($data, $bureauChange, $notifications, $request): void {
+            $bureauChange->update([
+                'statut_modification' => 'en_attente_validation_modification',
+                'modification_proposee' => $data,
+                'modification_proposee_par' => auth()->id(),
+                'modification_approuvee_par' => null,
+                'modification_approuvee_at' => null,
+            ]);
 
-        AuditLogger::forModel(
-            'bureau_modification_proposee',
-            $bureauChange,
-            'Proposition de modification du bureau de change ' . $bureauChange->designation . ' par ' . auth()->user()->nom
-        );
+            AuditLogger::forModel(
+                'bureau_modification_proposee',
+                $bureauChange,
+                'Proposition de modification du bureau de change ' . $bureauChange->designation . ' par ' . auth()->user()->nom
+            );
+            $notifications->bureauChangeModificationSubmitted($bureauChange, $request->user());
+        });
 
         return response()->json([
             'message' => 'Modifications proposées. En attente de validation.',
@@ -126,7 +139,7 @@ class BureauChangeController extends Controller
         ]);
     }
 
-    public function approuverModification(BureauChange $bureauChange): JsonResponse
+    public function approuverModification(BureauChange $bureauChange, WorkflowNotificationService $notifications): JsonResponse
     {
         if (!auth()->user()->hasPermission('approuver_modification_bureau')) {
             return response()->json([
@@ -147,23 +160,27 @@ class BureauChangeController extends Controller
             ], 403);
         }
 
+        $proposerId = (int) $bureauChange->modification_proposee_par;
         $newStatut = $bureauChange->statut === 'rejete' ? 'en_attente' : $bureauChange->statut;
 
-        $bureauChange->update([
-            ...$bureauChange->modification_proposee,
-            'statut' => $newStatut,
-            'statut_modification' => null,
-            'modification_proposee' => null,
-            'modification_proposee_par' => null,
-            'modification_approuvee_par' => auth()->id(),
-            'modification_approuvee_at' => now(),
-        ]);
+        DB::transaction(function () use ($bureauChange, $newStatut, $proposerId, $notifications): void {
+            $bureauChange->update([
+                ...$bureauChange->modification_proposee,
+                'statut' => $newStatut,
+                'statut_modification' => null,
+                'modification_proposee' => null,
+                'modification_proposee_par' => null,
+                'modification_approuvee_par' => auth()->id(),
+                'modification_approuvee_at' => now(),
+            ]);
 
-        AuditLogger::forModel(
-            'bureau_modification_approuvee',
-            $bureauChange,
-            'Approbation de la modification du bureau de change ' . $bureauChange->designation . ' par ' . auth()->user()->nom
-        );
+            AuditLogger::forModel(
+                'bureau_modification_approuvee',
+                $bureauChange,
+                'Approbation de la modification du bureau de change ' . $bureauChange->designation . ' par ' . auth()->user()->nom
+            );
+            $notifications->bureauChangeModificationDecision($proposerId, $bureauChange, true);
+        });
 
         return response()->json([
             'message' => 'Modifications appliquées définitivement.',
@@ -171,7 +188,7 @@ class BureauChangeController extends Controller
         ]);
     }
 
-    public function import(): JsonResponse
+    public function import(WorkflowNotificationService $notifications): JsonResponse
     {
         request()->validate([
             'fichier' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:5120'],
@@ -204,6 +221,7 @@ class BureauChangeController extends Controller
             null,
             'Import Excel : ' . $import->imported . ' importés, ' . $import->skipped . ' ignorés'
         );
+        $notifications->bureauChangesImported($import->imported, auth()->user());
 
         return response()->json([
             'message'  => "{$import->imported} bureau(x) importé(s) avec succès.",
@@ -213,7 +231,7 @@ class BureauChangeController extends Controller
         ]);
     }
 
-    public function valider(BureauChange $bureauChange): JsonResponse
+    public function valider(BureauChange $bureauChange, WorkflowNotificationService $notifications): JsonResponse
     {
         if (!auth()->user()->hasPermission('valider_bureau_change')) {
             return response()->json(['message' => 'Permission refusée.'], 403);
@@ -223,16 +241,19 @@ class BureauChangeController extends Controller
             return response()->json(['message' => 'Déjà traité.'], 403);
         }
 
-        $bureauChange->update([
-            'statut'       => 'valide',
-            'validated_by' => auth()->id(),
-        ]);
+        DB::transaction(function () use ($bureauChange, $notifications): void {
+            $bureauChange->update([
+                'statut'       => 'valide',
+                'validated_by' => auth()->id(),
+            ]);
 
-        AuditLogger::forModel(
-            'bureau_valide',
-            $bureauChange,
-            'Validation bureau de change : ' . $bureauChange->designation
-        );
+            AuditLogger::forModel(
+                'bureau_valide',
+                $bureauChange,
+                'Validation bureau de change : ' . $bureauChange->designation
+            );
+            $notifications->bureauChangeDecision($bureauChange, true);
+        });
 
         return response()->json([
             'message'      => 'Bureau de change validé.',
@@ -242,7 +263,7 @@ class BureauChangeController extends Controller
         ]);
     }
 
-    public function rejeter(BureauChange $bureauChange): JsonResponse
+    public function rejeter(BureauChange $bureauChange, WorkflowNotificationService $notifications): JsonResponse
     {
         if (!auth()->user()->hasPermission('valider_bureau_change')) {
             return response()->json(['message' => 'Permission refusée.'], 403);
@@ -259,17 +280,20 @@ class BureauChangeController extends Controller
             return response()->json(['message' => 'Déjà traité.'], 403);
         }
 
-        $bureauChange->update([
-            'statut'       => 'rejete',
-            'validated_by' => auth()->id(),
-            'commentaire'  => request('commentaire'),
-        ]);
+        DB::transaction(function () use ($bureauChange, $notifications): void {
+            $bureauChange->update([
+                'statut'       => 'rejete',
+                'validated_by' => auth()->id(),
+                'commentaire'  => request('commentaire'),
+            ]);
 
-        AuditLogger::forModel(
-            'bureau_rejete',
-            $bureauChange,
-            'Rejet bureau de change : ' . $bureauChange->designation
-        );
+            AuditLogger::forModel(
+                'bureau_rejete',
+                $bureauChange,
+                'Rejet bureau de change : ' . $bureauChange->designation
+            );
+            $notifications->bureauChangeDecision($bureauChange, false);
+        });
 
         return response()->json([
             'message'      => 'Bureau de change rejeté.',
@@ -279,7 +303,7 @@ class BureauChangeController extends Controller
         ]);
     }
 
-    public function rejeterModification(BureauChange $bureauChange): JsonResponse
+    public function rejeterModification(BureauChange $bureauChange, WorkflowNotificationService $notifications): JsonResponse
     {
         if (!auth()->user()->hasPermission('approuver_modification_bureau')) {
             return response()->json([
@@ -293,19 +317,23 @@ class BureauChangeController extends Controller
             ], 422);
         }
 
-        $bureauChange->update([
-            'statut_modification' => null,
-            'modification_proposee' => null,
-            'modification_proposee_par' => null,
-            'modification_approuvee_par' => auth()->id(),
-            'modification_approuvee_at' => now(),
-        ]);
+        $proposerId = (int) $bureauChange->modification_proposee_par;
+        DB::transaction(function () use ($bureauChange, $proposerId, $notifications): void {
+            $bureauChange->update([
+                'statut_modification' => null,
+                'modification_proposee' => null,
+                'modification_proposee_par' => null,
+                'modification_approuvee_par' => auth()->id(),
+                'modification_approuvee_at' => now(),
+            ]);
 
-        AuditLogger::forModel(
-            'bureau_modification_rejetee',
-            $bureauChange,
-            'Rejet de la modification du bureau de change ' . $bureauChange->designation . ' par ' . auth()->user()->nom
-        );
+            AuditLogger::forModel(
+                'bureau_modification_rejetee',
+                $bureauChange,
+                'Rejet de la modification du bureau de change ' . $bureauChange->designation . ' par ' . auth()->user()->nom
+            );
+            $notifications->bureauChangeModificationDecision($proposerId, $bureauChange, false);
+        });
 
         return response()->json([
             'message' => 'Modifications rejetées. Les données restent inchangées.',
@@ -403,7 +431,7 @@ class BureauChangeController extends Controller
         });
     }
 
-    public function validateMany(Request $request): JsonResponse
+    public function validateMany(Request $request, WorkflowNotificationService $notifications): JsonResponse
     {
         if (!$request->user()->hasPermission('valider_bureau_change')) {
             return response()->json(['message' => 'Permission refusée.'], 403);
@@ -414,7 +442,7 @@ class BureauChangeController extends Controller
             'ids.*' => ['required', 'integer', 'distinct', 'exists:bureau_changes,id'],
         ])['ids'];
 
-        return DB::transaction(function () use ($ids): JsonResponse {
+        return DB::transaction(function () use ($ids, $request, $notifications): JsonResponse {
             $bureaux = BureauChange::query()->whereKey($ids)->lockForUpdate()->get();
 
             if ($bureaux->count() !== count($ids)
@@ -436,6 +464,7 @@ class BureauChangeController extends Controller
                     $bureauChange,
                     'Validation bureau de change : ' . $bureauChange->designation
                 );
+                $notifications->bureauChangeDecision($bureauChange, true);
             }
 
             return response()->json([

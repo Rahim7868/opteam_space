@@ -13,6 +13,7 @@ const ChangePassword  = lazy(() => import('./pages/ChangePassword'))
 const AppLayout       = lazy(() => import('./layouts/AppLayout'))
 const Dashboard       = lazy(() => import('./pages/Dashboard'))
 const Profile         = lazy(() => import('./pages/Profile'))
+const Notifications   = lazy(() => import('./pages/Notifications'))
 const Fixings         = lazy(() => import('./pages/Fixings'))
 const BureauChanges   = lazy(() => import('./pages/BureauChanges'))
 const Users           = lazy(() => import('./pages/Users'))
@@ -26,7 +27,6 @@ const AuditLogs       = lazy(() => import('./pages/AuditLogs'))
 const AuditAccessLogs = lazy(() => import('./pages/AuditAccessLogs'))
 const AuditExchangeLogs = lazy(() => import('./pages/AuditExchangeLogs'))
 const AuditLocationLogs = lazy(() => import('./pages/AuditLocationLogs'))
-const TechnicalLogs    = lazy(() => import('./pages/TechnicalLogs'))
 
 export default function App() {
   return (
@@ -48,6 +48,8 @@ export default function App() {
 
             <Route path="profile" element={<Profile />} />
 
+            <Route path="notifications" element={<Notifications />} />
+
             <Route path="fixings"
               element={<ProtectedRoute permissions={[
                 'creer_fixing',
@@ -61,7 +63,12 @@ export default function App() {
             </Route>
 
             <Route path="bureau-changes"
-              element={<ProtectedRoute permission="creer_bureau_change" />}>
+              element={<ProtectedRoute permissions={[
+                'creer_bureau_change',
+                'valider_bureau_change',
+                'consulter_bureau_change',
+                'approuver_modification_bureau',
+              ]} />}>
               <Route index element={<BureauChanges />} />
             </Route>
 
@@ -107,11 +114,6 @@ export default function App() {
               <Route path="fixings-bureaux" element={<AuditExchangeLogs />} />
               <Route path="locaux" element={<AuditLocationLogs />} />
               <Route path="acces" element={<AuditAccessLogs />} />
-            </Route>
-
-            <Route path="technical-logs"
-              element={<ProtectedRoute permission="consulter_logs_techniques" />}>
-              <Route index element={<TechnicalLogs />} />
             </Route>
 
           </Route>

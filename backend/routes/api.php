@@ -14,8 +14,8 @@ use App\Http\Controllers\FixingController;
 use App\Http\Controllers\BureauChangeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AuditLogController;
-use App\Http\Controllers\TechnicalLogController;
 use App\Http\Controllers\ForgotPasswordController;
+use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth publique avec rate limiting strict ────────────────────
@@ -37,6 +37,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::post('/auth/change-password', [AuthController::class, 'changePassword']);
     Route::put('/profile/password', [ProfileController::class, 'updatePassword']);
+
+    // ── Notifications ─────────────────────────────────────────
+    Route::get('/notifications/unread-count', [NotificationController::class, 'unreadCount']);
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+    Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
     
     // ── Export Fixings ──────────────────────────────────────────
     Route::get('/export/fixings-pdf', [ExportController::class, 'exportFixingsPdf']);
@@ -104,6 +110,4 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/audit-logs/bulk', [AuditLogController::class, 'destroyMany']);
     Route::delete('/audit-logs/{auditLog}', [AuditLogController::class, 'destroy']);
 
-    // ── Journaux techniques ────────────────────────────────────
-    Route::get('/technical-logs', [TechnicalLogController::class, 'index']);
 });

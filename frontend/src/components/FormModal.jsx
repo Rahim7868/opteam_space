@@ -42,29 +42,28 @@ export default function FormModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="form-modal-title"
-        className={`animate-enter flex max-h-[92vh] w-full ${size} flex-col overflow-hidden rounded-3xl border border-white/70 bg-white shadow-2xl shadow-slate-950/30`}
+        className={`animate-enter flex max-h-[92vh] w-full ${size} flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/20`}
       >
-        <header className="relative shrink-0 overflow-hidden border-b border-slate-100 bg-gradient-to-br from-teal-50 via-white to-slate-50 px-5 py-5 sm:px-7">
-          <div className="absolute -right-8 -top-12 h-36 w-36 rounded-full bg-teal-100/60 blur-2xl" />
+        <header className="relative shrink-0 overflow-hidden border-b border-teal-800 bg-teal-700 px-5 py-4 text-white sm:px-7">
           <div className="relative flex items-start justify-between gap-4">
             <div className="flex min-w-0 items-start gap-3">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-teal-700 text-white shadow-lg shadow-teal-700/20">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15 text-white">
                 <Icon size={21} />
               </div>
               <div className="min-w-0">
-                <span className="inline-flex rounded-full bg-teal-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-teal-800">
+                <span className="inline-flex rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white">
                   {editing ? 'Modification' : 'Nouvel enregistrement'}
                 </span>
-                <h2 id="form-modal-title" className="mt-1.5 truncate text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+                <h2 id="form-modal-title" className="mt-1.5 truncate text-xl font-bold tracking-tight text-white sm:text-2xl">
                   {title}
                 </h2>
-                {subtitle && <p className="mt-1 text-sm leading-5 text-slate-500">{subtitle}</p>}
+                {subtitle && <p className="mt-1 text-sm leading-5 text-white/80">{subtitle}</p>}
               </div>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="relative rounded-xl p-2 text-slate-400 transition hover:bg-white hover:text-slate-700 hover:shadow-sm"
+              className="relative rounded-xl p-2 text-white/80 transition hover:bg-white/15 hover:text-white"
               aria-label="Fermer"
             >
               <X size={20} />

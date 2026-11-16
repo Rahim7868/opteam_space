@@ -25,7 +25,17 @@ class AuditLogsExport implements FromCollection, WithHeadings, WithMapping, With
 
     public function headings(): array
     {
-        return ['Date', 'Utilisateur', 'Action', 'Entité', 'ID entité', 'Description'];
+        return [
+            'Date',
+            'Utilisateur',
+            'Action',
+            'Entité',
+            'ID entité',
+            'Description',
+            'Email de connexion',
+            'Résultat de connexion',
+            'Adresse IP',
+        ];
     }
 
     public function map($log): array
@@ -37,6 +47,13 @@ class AuditLogsExport implements FromCollection, WithHeadings, WithMapping, With
             $log->entity_type ?? '—',
             $log->entity_id ?? '—',
             $log->description ?? '—',
+            $log->login_email ?? '—',
+            match ($log->login_status) {
+                'success' => 'Réussie',
+                'failure' => 'Échec',
+                default => '—',
+            },
+            $log->ip_address ?? '—',
         ];
     }
 
@@ -44,7 +61,7 @@ class AuditLogsExport implements FromCollection, WithHeadings, WithMapping, With
     {
         $lastRow = max(1, $sheet->getHighestRow());
 
-        $sheet->getStyle('A1:F1')->applyFromArray([
+        $sheet->getStyle('A1:I1')->applyFromArray([
             'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF'], 'size' => 12],
             'fill' => [
                 'fillType' => Fill::FILL_SOLID,
@@ -56,7 +73,7 @@ class AuditLogsExport implements FromCollection, WithHeadings, WithMapping, With
             ],
         ]);
 
-        $sheet->getStyle("A1:F{$lastRow}")->applyFromArray([
+        $sheet->getStyle("A1:I{$lastRow}")->applyFromArray([
             'borders' => [
                 'allBorders' => [
                     'borderStyle' => Border::BORDER_THIN,
@@ -65,11 +82,21 @@ class AuditLogsExport implements FromCollection, WithHeadings, WithMapping, With
             ],
         ]);
 
-        foreach (['A' => 21, 'B' => 24, 'C' => 30, 'D' => 22, 'E' => 14, 'F' => 60] as $column => $width) {
+        foreach ([
+            'A' => 21,
+            'B' => 24,
+            'C' => 30,
+            'D' => 22,
+            'E' => 14,
+            'F' => 45,
+            'G' => 30,
+            'H' => 24,
+            'I' => 20,
+        ] as $column => $width) {
             $sheet->getColumnDimension($column)->setWidth($width);
         }
 
-        $sheet->getStyle("A2:F{$lastRow}")
+        $sheet->getStyle("A2:I{$lastRow}")
             ->getAlignment()
             ->setVertical(Alignment::VERTICAL_TOP)
             ->setWrapText(true);

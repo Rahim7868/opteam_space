@@ -6,8 +6,10 @@ use App\Http\Requests\FixingRequest;
 use App\Http\Resources\FixingResource;
 use App\Models\Fixing;
 use App\Services\AuditLogger;
+use App\Services\WorkflowNotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 class FixingController extends Controller
@@ -18,7 +20,12 @@ class FixingController extends Controller
             ->with('createur', 'validateur', 'modificationProposeePar', 'modificationApprouveePar')
             ->latest();
 
-        if (!auth()->user()->hasPermission('consulter_fixing')) {
+        if (
+            !auth()->user()->hasPermission('consulter_fixing')
+            && !auth()->user()->hasPermission('valider_fixing')
+            && !auth()->user()->hasPermission('rejeter_fixing')
+            && !auth()->user()->hasPermission('approuver_modification_fixing')
+        ) {
             $query->where('created_by', auth()->id());
         }
 
@@ -52,7 +59,7 @@ class FixingController extends Controller
         return FixingResource::collection($fixings);
     }
 
-    public function store(FixingRequest $request): FixingResource|JsonResponse
+    public function store(FixingRequest $request, WorkflowNotificationService $notifications): FixingResource|JsonResponse
     {
         $data = $request->validated();
 
@@ -72,17 +79,22 @@ class FixingController extends Controller
                 ->store('fixings', 'public');
         }
 
-        $fixing = Fixing::create([
-            ...$data,
-            'created_by' => auth()->id(),
-            'statut'     => 'en_attente',
-        ]);
+        $fixing = DB::transaction(function () use ($data, $notifications): Fixing {
+            $fixing = Fixing::create([
+                ...$data,
+                'created_by' => auth()->id(),
+                'statut'     => 'en_attente',
+            ]);
 
-        AuditLogger::forModel(
-            'fixing_created',
-            $fixing,
-            'Création fixing ' . $fixing->devise . ' — ' . $fixing->cours
-        );
+            AuditLogger::forModel(
+                'fixing_created',
+                $fixing,
+                'Création fixing ' . $fixing->devise . ' — ' . $fixing->cours
+            );
+            $notifications->fixingSubmitted($fixing, auth()->user());
+
+            return $fixing;
+        });
 
         return new FixingResource($fixing->load('createur'));
     }
@@ -92,7 +104,7 @@ class FixingController extends Controller
         return new FixingResource($fixing->load('createur', 'validateur'));
     }
 
-    public function update(FixingRequest $request, Fixing $fixing): JsonResponse|FixingResource
+    public function update(FixingRequest $request, Fixing $fixing, WorkflowNotificationService $notifications): JsonResponse|FixingResource
     {
         if (!$fixing->isEditable()) {
             return response()->json([
@@ -117,19 +129,22 @@ class FixingController extends Controller
             $data['piece_jointe_url'] = Storage::disk('public')->url($filePath);
         }
 
-        $fixing->update([
-            'statut_modification' => 'en_attente_validation_modification',
-            'modification_proposee' => $data,
-            'modification_proposee_par' => auth()->id(),
-            'modification_approuvee_par' => null,
-            'modification_approuvee_at' => null,
-        ]);
+        DB::transaction(function () use ($data, $fixing, $notifications): void {
+            $fixing->update([
+                'statut_modification' => 'en_attente_validation_modification',
+                'modification_proposee' => $data,
+                'modification_proposee_par' => auth()->id(),
+                'modification_approuvee_par' => null,
+                'modification_approuvee_at' => null,
+            ]);
 
-        AuditLogger::forModel(
-            'fixing_modification_proposee',
-            $fixing,
-            'Proposition de modification du fixing ' . $fixing->devise . ' par ' . auth()->user()->nom
-        );
+            AuditLogger::forModel(
+                'fixing_modification_proposee',
+                $fixing,
+                'Proposition de modification du fixing ' . $fixing->devise . ' par ' . auth()->user()->nom
+            );
+            $notifications->fixingModificationSubmitted($fixing, auth()->user());
+        });
 
         return response()->json([
             'message' => 'Modifications proposées. En attente de validation.',
@@ -137,7 +152,7 @@ class FixingController extends Controller
         ]);
     }
 
-    public function approuverModification(Fixing $fixing): JsonResponse
+    public function approuverModification(Fixing $fixing, WorkflowNotificationService $notifications): JsonResponse
     {
         if (!auth()->user()->hasPermission('approuver_modification_fixing')) {
             return response()->json([
@@ -158,23 +173,27 @@ class FixingController extends Controller
             ], 403);
         }
 
+        $proposerId = (int) $fixing->modification_proposee_par;
         $newStatut = $fixing->statut === 'rejete' ? 'en_attente' : $fixing->statut;
 
-        $fixing->update([
-            ...$fixing->modification_proposee,
-            'statut' => $newStatut,
-            'statut_modification' => null,
-            'modification_proposee' => null,
-            'modification_proposee_par' => null,
-            'modification_approuvee_par' => auth()->id(),
-            'modification_approuvee_at' => now(),
-        ]);
+        DB::transaction(function () use ($fixing, $newStatut, $proposerId, $notifications): void {
+            $fixing->update([
+                ...$fixing->modification_proposee,
+                'statut' => $newStatut,
+                'statut_modification' => null,
+                'modification_proposee' => null,
+                'modification_proposee_par' => null,
+                'modification_approuvee_par' => auth()->id(),
+                'modification_approuvee_at' => now(),
+            ]);
 
-        AuditLogger::forModel(
-            'fixing_modification_approuvee',
-            $fixing,
-            'Approbation de la modification du fixing ' . $fixing->devise . ' par ' . auth()->user()->nom
-        );
+            AuditLogger::forModel(
+                'fixing_modification_approuvee',
+                $fixing,
+                'Approbation de la modification du fixing ' . $fixing->devise . ' par ' . auth()->user()->nom
+            );
+            $notifications->fixingModificationDecision($proposerId, $fixing, true);
+        });
 
         return response()->json([
             'message' => 'Modifications appliquées définitivement.',
@@ -182,7 +201,7 @@ class FixingController extends Controller
         ]);
     }
 
-    public function valider(Fixing $fixing): JsonResponse
+    public function valider(Fixing $fixing, WorkflowNotificationService $notifications): JsonResponse
     {
         if (!auth()->user()->hasPermission('valider_fixing')) {
             return response()->json(['message' => 'Permission refusée.'], 403);
@@ -192,16 +211,19 @@ class FixingController extends Controller
             return response()->json(['message' => 'Déjà traité.'], 403);
         }
 
-        $fixing->update([
-            'statut'       => 'valide',
-            'validated_by' => auth()->id(),
-        ]);
+        DB::transaction(function () use ($fixing, $notifications): void {
+            $fixing->update([
+                'statut'       => 'valide',
+                'validated_by' => auth()->id(),
+            ]);
 
-        AuditLogger::forModel(
-            'fixing_valide',
-            $fixing,
-            'Validation du fixing ' . $fixing->devise . ' — ' . $fixing->cours
-        );
+            AuditLogger::forModel(
+                'fixing_valide',
+                $fixing,
+                'Validation du fixing ' . $fixing->devise . ' — ' . $fixing->cours
+            );
+            $notifications->fixingDecision($fixing, true);
+        });
 
         return response()->json([
             'message' => 'Fixing validé.',
@@ -209,7 +231,7 @@ class FixingController extends Controller
         ]);
     }
 
-    public function rejeter(Fixing $fixing): JsonResponse
+    public function rejeter(Fixing $fixing, WorkflowNotificationService $notifications): JsonResponse
     {
         if (!auth()->user()->hasPermission('rejeter_fixing')) {
             return response()->json(['message' => 'Permission refusée.'], 403);
@@ -226,17 +248,20 @@ class FixingController extends Controller
             return response()->json(['message' => 'Déjà traité.'], 403);
         }
 
-        $fixing->update([
-            'statut'       => 'rejete',
-            'validated_by' => auth()->id(),
-            'commentaire'  => request('commentaire'),
-        ]);
+        DB::transaction(function () use ($fixing, $notifications): void {
+            $fixing->update([
+                'statut'       => 'rejete',
+                'validated_by' => auth()->id(),
+                'commentaire'  => request('commentaire'),
+            ]);
 
-        AuditLogger::forModel(
-            'fixing_rejete',
-            $fixing,
-            'Rejet du fixing ' . $fixing->devise . ' — ' . $fixing->cours
-        );
+            AuditLogger::forModel(
+                'fixing_rejete',
+                $fixing,
+                'Rejet du fixing ' . $fixing->devise . ' — ' . $fixing->cours
+            );
+            $notifications->fixingDecision($fixing, false);
+        });
 
         return response()->json([
             'message' => 'Fixing rejeté.',
@@ -244,7 +269,7 @@ class FixingController extends Controller
         ]);
     }
 
-    public function rejeterModification(Fixing $fixing): JsonResponse
+    public function rejeterModification(Fixing $fixing, WorkflowNotificationService $notifications): JsonResponse
     {
         if (!auth()->user()->hasPermission('approuver_modification_fixing')) {
             return response()->json([
@@ -258,19 +283,22 @@ class FixingController extends Controller
             ], 422);
         }
 
-        $fixing->update([
-            'statut_modification' => null,
-            'modification_proposee' => null,
-            'modification_proposee_par' => null,
-            'modification_approuvee_par' => auth()->id(),
-            'modification_approuvee_at' => now(),
-        ]);
+        $proposerId = (int) $fixing->modification_proposee_par;
+        DB::transaction(function () use ($fixing, $proposerId, $notifications): void {
+            $fixing->update([
+                'statut_modification' => null,
+                'modification_proposee' => null,
+                'modification_approuvee_par' => auth()->id(),
+                'modification_approuvee_at' => now(),
+            ]);
 
-        AuditLogger::forModel(
-            'fixing_modification_rejetee',
-            $fixing,
-            'Rejet de la modification du fixing ' . $fixing->devise . ' par ' . auth()->user()->nom
-        );
+            AuditLogger::forModel(
+                'fixing_modification_rejetee',
+                $fixing,
+                'Rejet de la modification du fixing ' . $fixing->devise . ' par ' . auth()->user()->nom
+            );
+            $notifications->fixingModificationDecision($proposerId, $fixing, false);
+        });
 
         return response()->json([
             'message' => 'Modifications rejetées. Les données restent inchangées.',

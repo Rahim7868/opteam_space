@@ -16,6 +16,9 @@ class AuditLog extends Model
         'entity_type',
         'entity_id',
         'description',
+        'login_email',
+        'login_status',
+        'ip_address',
     ];
 
     public function user(): BelongsTo

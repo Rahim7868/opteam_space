@@ -34,4 +34,18 @@ class AuditLogger
             'description' => $description,
         ]);
     }
+
+    public static function logLoginAttempt(?int $userId, string $email, bool $successful, ?string $ipAddress): void
+    {
+        AuditLog::create([
+            'user_id' => $userId,
+            'action' => 'login',
+            'entity_type' => 'User',
+            'entity_id' => $userId,
+            'description' => $successful ? 'Connexion réussie' : 'Échec de connexion',
+            'login_email' => $email,
+            'login_status' => $successful ? 'success' : 'failure',
+            'ip_address' => $ipAddress,
+        ]);
+    }
 }

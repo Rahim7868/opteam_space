@@ -83,6 +83,7 @@ function ActionBadge({ action }) {
 
 function userLabel(row) {
   if (row.user?.nom) return row.user.nom
+  if (row.login_status) return 'Compte non identifié'
 
   const description = row.description || ''
   const match = description.match(/(?:Connexion|Déconnexion|Deconnexion) de (.+)$/i)
@@ -266,6 +267,32 @@ export default function AuditLogTable({
       key: 'user', label: 'Utilisateur',
       render: (row) => <div className="text-sm font-semibold text-slate-800">{userLabel(row)}</div>,
     },
+    ...(category === 'user-actions' ? [
+      {
+        key: 'login_email', label: 'Email de connexion',
+        render: (row) => row.login_email || '—',
+      },
+      {
+        key: 'login_status', label: 'Résultat',
+        render: (row) => {
+          if (!row.login_status) return '—'
+          const successful = row.login_status === 'success'
+          return (
+            <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${
+              successful
+                ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                : 'bg-rose-50 text-rose-700 ring-rose-200'
+            }`}>
+              {successful ? 'Réussie' : 'Échec'}
+            </span>
+          )
+        },
+      },
+      {
+        key: 'ip_address', label: 'Adresse IP',
+        render: (row) => row.ip_address || '—',
+      },
+    ] : []),
     {
       key: 'action', label: 'Action',
       render: (row) => <ActionBadge action={row.action} />,

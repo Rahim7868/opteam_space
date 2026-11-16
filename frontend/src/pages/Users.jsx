@@ -1,4 +1,4 @@
-import { Edit, Eye, Plus, Search, Shield, ToggleLeft, ToggleRight, RefreshCw, UserX } from 'lucide-react'
+import { Ban, CheckCircle, Edit, Eye, Plus, Search, RefreshCw, Shield, UserX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import api, { getApiError } from '../api/client'
 import ConfirmModal from '../components/ConfirmModal'
@@ -370,7 +370,18 @@ export default function Users() {
   }
 
   const columns = [
-    { key: 'nom',   label: 'Nom' },
+    {
+      key: 'nom',
+      label: 'Nom complet',
+      render: (row) => (
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-teal-100 text-sm font-bold text-teal-800">
+            {row.nom?.charAt(0)?.toUpperCase() ?? '?'}
+          </div>
+          <span className="font-semibold text-slate-900">{row.nom}</span>
+        </div>
+      ),
+    },
     { key: 'email', label: 'Email' },
     {
       key: 'fonction', label: 'Fonction',
@@ -381,7 +392,7 @@ export default function Users() {
     {
       key: 'role', label: 'Rôle',
       render: (row) => row.role?.libelle
-        ? <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">{row.role.libelle}</span>
+        ? <span className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">{row.role.libelle}</span>
         : <span className="text-slate-400">N/A</span>,
     },
     {
@@ -416,6 +427,14 @@ export default function Users() {
       key: 'actions', label: 'Actions',
       render: (row) => (
         <div className="flex gap-1">
+          {isAdmin && (
+            <IconActionButton
+              icon={Shield}
+              label="Permissions"
+              tone="primary"
+              onClick={() => openPermModal(row)}
+            />
+          )}
           {row.statut_modification === 'en_attente_validation_modification' && canApprouverModification ? (
             <IconActionButton
               icon={Eye}
@@ -427,6 +446,7 @@ export default function Users() {
             <IconActionButton
               icon={Eye}
               label="Voir"
+              tone="info"
               onClick={() => setDetailModal({ open: true, item: row })}
             />
           )}
@@ -434,22 +454,15 @@ export default function Users() {
             <IconActionButton
               icon={Edit}
               label="Modifier"
-              onClick={() => startEdit(row)}
-            />
-          )}
-          {isAdmin && (
-            <IconActionButton
-              icon={Shield}
-              label="Permissions"
               tone="primary"
-              onClick={() => openPermModal(row)}
+              onClick={() => startEdit(row)}
             />
           )}
           {canDesactivate && (
             <IconActionButton
-              icon={row.is_active ? ToggleRight : ToggleLeft}
+              icon={row.is_active ? Ban : CheckCircle}
               label={row.is_active ? 'Désactiver' : 'Activer'}
-              tone={row.is_active ? 'danger' : 'success'}
+              tone={row.is_active ? 'neutral' : 'success'}
               onClick={() => {
                 if (row.is_active) {
                   setDeactivateModal({ open: true, user: row })
@@ -467,7 +480,7 @@ export default function Users() {
   return (
     <>
       <PageHeader
-        title="Acteurs"
+        title="Liste des utilisateurs"
         subtitle="Création et gestion des comptes utilisateurs."
         action={canCreate && (
           <button onClick={openCreateModal} className="btn btn-primary">
@@ -480,50 +493,76 @@ export default function Users() {
       <SuccessAlert message={success} onDismiss={() => setSuccess('')} />
 
       {/* Filtres */}
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <div className="relative">
-          <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
-          <input
-            className="field pl-9 w-full"
-            placeholder="Rechercher..."
-            value={filters.search}
-            onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
-          />
+      <section className="panel mb-5 p-4 sm:p-5">
+        <h2 className="mb-3 text-base font-semibold text-slate-900">Filtrer les utilisateurs</h2>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div>
+            <label htmlFor="user-search" className="mb-1 block text-xs font-semibold text-slate-600">
+              Recherche
+            </label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input
+                id="user-search"
+                className="field pl-9"
+                placeholder="Nom ou email..."
+                value={filters.search}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
+              />
+            </div>
+          </div>
+          <div>
+            <label htmlFor="user-role-filter" className="mb-1 block text-xs font-semibold text-slate-600">
+              Rôle
+            </label>
+            <select
+              id="user-role-filter"
+              className="field"
+              value={filters.role_id}
+              onChange={(e) => setFilters({ ...filters, role_id: e.target.value, page: 1 })}
+            >
+              <option value="">Tous les rôles</option>
+              {roles.map((r) => <option key={r.id} value={r.id}>{r.libelle}</option>)}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="user-status-filter" className="mb-1 block text-xs font-semibold text-slate-600">
+              Statut
+            </label>
+            <select
+              id="user-status-filter"
+              className="field"
+              value={filters.is_active}
+              onChange={(e) => setFilters({ ...filters, is_active: e.target.value, page: 1 })}
+            >
+              <option value="">Tous statuts</option>
+              <option value="1">Actifs</option>
+              <option value="0">Inactifs</option>
+            </select>
+          </div>
+          <div>
+            <label htmlFor="user-agency-filter" className="mb-1 block text-xs font-semibold text-slate-600">
+              Agence
+            </label>
+            <select
+              id="user-agency-filter"
+              className="field"
+              value={filters.agence_id}
+              onChange={(e) => setFilters({ ...filters, agence_id: e.target.value, page: 1 })}
+            >
+              <option value="">Toutes agences</option>
+              {agences.map((a) => (
+                <option key={a.id} value={a.id}>{a.libelle}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-end">
+            <button onClick={resetFilters} className="btn btn-accent h-[42px] w-full">
+              <RefreshCw size={14} /> Réinitialiser
+            </button>
+          </div>
         </div>
-        <select
-          className="field w-full"
-          value={filters.role_id}
-          onChange={(e) => setFilters({ ...filters, role_id: e.target.value, page: 1 })}
-        >
-          <option value="">Tous les rôles</option>
-          {roles.map((r) => <option key={r.id} value={r.id}>{r.libelle}</option>)}
-        </select>
-        <select
-          className="field w-full"
-          value={filters.is_active}
-          onChange={(e) => setFilters({ ...filters, is_active: e.target.value, page: 1 })}
-        >
-          <option value="">Tous statuts</option>
-          <option value="1">Actifs</option>
-          <option value="0">Inactifs</option>
-        </select>
-        <select
-          className="field w-full"
-          value={filters.agence_id}
-          onChange={(e) => setFilters({ ...filters, agence_id: e.target.value, page: 1 })}
-        >
-          <option value="">Toutes agences</option>
-          {agences.map((a) => (
-            <option key={a.id} value={a.id}>{a.libelle}</option>
-          ))}
-        </select>
-        <button
-          onClick={resetFilters}
-          className="inline-flex h-10 items-center justify-center gap-1 rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 transition"
-        >
-          <RefreshCw size={14} /> Réinitialiser
-        </button>
-      </div>
+      </section>
 
       {/* Bouton comptes désactivés */}
       {canDesactivate && (
@@ -551,9 +590,9 @@ export default function Users() {
         >
         <form
           onSubmit={(e) => { e.preventDefault(); setSubmitConfirm(true) }}
-          className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4 sm:p-5"
+          className="rounded-lg border border-slate-200 bg-white p-4 sm:p-5"
         >
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <div>
               <label className="block text-sm font-medium text-slate-700">
                 Nom complet <span className="text-slate-700">*</span>

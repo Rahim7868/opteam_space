@@ -27,6 +27,9 @@
                 <th>Entité</th>
                 <th>ID entité</th>
                 <th>Description</th>
+                <th>Email de connexion</th>
+                <th>Résultat</th>
+                <th>Adresse IP</th>
             </tr>
         </thead>
         <tbody>
@@ -38,9 +41,12 @@
                     <td>{{ $log->entity_type ?? '—' }}</td>
                     <td>{{ $log->entity_id ?? '—' }}</td>
                     <td>{{ $log->description ?? '—' }}</td>
+                    <td>{{ $log->login_email ?? '—' }}</td>
+                    <td>{{ match ($log->login_status) { 'success' => 'Réussie', 'failure' => 'Échec', default => '—' } }}</td>
+                    <td>{{ $log->ip_address ?? '—' }}</td>
                 </tr>
             @empty
-                <tr><td colspan="6" style="text-align:center;color:#94a3b8;padding:18px;">Aucune entrée d’audit trouvée.</td></tr>
+                <tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:18px;">Aucune entrée d’audit trouvée.</td></tr>
             @endforelse
         </tbody>
     </table>

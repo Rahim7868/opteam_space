@@ -23,7 +23,7 @@ class AuthController extends Controller
         $userId = User::where('email', $request->email)->value('id');
 
         if (!$userId) {
-            return $this->loginFailure('Les identifiants sont invalides.');
+            return $this->loginFailure('Les identifiants sont invalides.', $request->email, null, $request->ip());
         }
 
         $result = DB::transaction(function () use ($userId, $request) {
@@ -68,15 +68,20 @@ class AuthController extends Controller
         });
 
         if ($result['status'] === 'invalid') {
-            return $this->loginFailure('Les identifiants sont invalides.');
+            return $this->loginFailure('Les identifiants sont invalides.', $request->email, $userId, $request->ip());
         }
 
         if ($result['status'] === 'deactivated') {
-            return $this->loginFailure(self::FAILED_LOGIN_MESSAGE);
+            return $this->loginFailure(self::FAILED_LOGIN_MESSAGE, $request->email, $userId, $request->ip());
         }
 
         if ($result['status'] === 'inactive') {
-            return $this->loginFailure('Ce compte est désactivé. Contactez un administrateur.');
+            return $this->loginFailure(
+                'Ce compte est désactivé. Contactez un administrateur.',
+                $request->email,
+                $userId,
+                $request->ip()
+            );
         }
 
         $user = $result['user']->load(['role.permissions', 'service', 'permissionsDirectes', 'permissionsRetirees']);
@@ -91,12 +96,11 @@ class AuthController extends Controller
             $token = $user->createToken('app-token')->plainTextToken;
         }
 
-        AuditLogger::logForUser(
+        AuditLogger::logLoginAttempt(
             $user->id,
-            'login',
-            'User',
-            $user->id,
-            'Connexion de ' . $user->nom
+            $user->email,
+            true,
+            $request->ip()
         );
 
         return response()->json([
@@ -106,8 +110,10 @@ class AuthController extends Controller
         ]);
     }
 
-    private function loginFailure(string $message): JsonResponse
+    private function loginFailure(string $message, string $email, ?int $userId, ?string $ipAddress): JsonResponse
     {
+        AuditLogger::logLoginAttempt($userId, $email, false, $ipAddress);
+
         return response()->json([
             'message' => $message,
             'errors' => ['email' => [$message]],

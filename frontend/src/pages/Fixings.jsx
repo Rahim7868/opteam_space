@@ -1,4 +1,4 @@
-import { Check, Edit, Eye, FileDown, FileSpreadsheet, MessageSquare, Plus, X, RefreshCw } from 'lucide-react'
+import { ArrowLeftRight, Check, Edit, Eye, FileDown, FileSpreadsheet, MessageSquare, Minus, Plus, RefreshCw, TrendingDown, TrendingUp, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import api, { getApiError } from '../api/client'
@@ -314,20 +314,50 @@ export default function Fixings() {
     { key: 'devise',      label: 'Devise' },
     {
       key: 'cours', label: 'Cours',
-      render: (row) => <span className="font-semibold text-slate-900">{formatAmount(row.cours)}</span>,
+      render: (row) => (
+        <span className="inline-flex items-center gap-2 rounded-xl border border-indigo-100 bg-gradient-to-r from-indigo-50 to-white px-2.5 py-1.5 shadow-sm">
+          <span className="grid h-7 w-7 place-items-center rounded-lg bg-indigo-100 text-indigo-700">
+            <ArrowLeftRight size={15} strokeWidth={2.25} />
+          </span>
+          <span className="font-mono text-sm font-bold tabular-nums tracking-tight text-slate-900">
+            {formatAmount(row.cours)}
+          </span>
+        </span>
+      ),
     },
     {
       key: 'variation', label: 'Variation',
       render: (row) => {
         if (row.variation === null || row.variation === undefined) {
-          return <span className="text-slate-400 text-xs">N/A</span>
+          return (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1.5 text-[11px] font-semibold text-slate-500">
+              <Minus size={13} />
+              Aucune référence
+            </span>
+          )
         }
         const v = Number(row.variation)
-        if (v === 0) return <span className="text-slate-500 text-xs">0</span>
+        if (!Number.isFinite(v)) {
+          return <span className="text-xs text-slate-400">N/A</span>
+        }
+
+        const increasing = v > 0
+        const decreasing = v < 0
+        const Icon = increasing ? TrendingUp : decreasing ? TrendingDown : Minus
+        const style = increasing
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+          : decreasing
+            ? 'border-rose-200 bg-rose-50 text-rose-700'
+            : 'border-slate-200 bg-slate-100 text-slate-600'
+
         return (
-          <span className={`font-semibold text-xs ${v > 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-            {v > 0 ? '+' : ''}{formatAmount(v)}
-          </span>
+          <div className="flex flex-col items-start gap-1">
+            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 font-mono text-xs font-bold tabular-nums ${style}`}>
+              <Icon size={14} strokeWidth={2.5} />
+              {increasing ? '+' : ''}{formatAmount(v)}
+            </span>
+            <span className="pl-1 text-[10px] font-medium text-slate-400">vs précédent</span>
+          </div>
         )
       },
     },

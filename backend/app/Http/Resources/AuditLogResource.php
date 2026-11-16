@@ -15,6 +15,9 @@ class AuditLogResource extends JsonResource
             'entity_type' => $this->entity_type,
             'entity_id'   => $this->entity_id,
             'description' => $this->description,
+            'login_email' => $this->login_email,
+            'login_status' => $this->login_status,
+            'ip_address' => $this->ip_address,
 
             // Auteur de l'action
             'user' => $this->whenLoaded('user', fn() => [
