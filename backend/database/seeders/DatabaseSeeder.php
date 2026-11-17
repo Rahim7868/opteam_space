@@ -45,6 +45,7 @@ class DatabaseSeeder extends Seeder
             'approuver_modification_user',
             'gerer_roles',
             'gerer_permissions',
+            'gerer_rapports',
             'gerer_agences',
             'gerer_directions',
             'gerer_departements',

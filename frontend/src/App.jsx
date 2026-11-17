@@ -15,6 +15,7 @@ const Dashboard       = lazy(() => import('./pages/Dashboard'))
 const Profile         = lazy(() => import('./pages/Profile'))
 const Notifications   = lazy(() => import('./pages/Notifications'))
 const Fixings         = lazy(() => import('./pages/Fixings'))
+const ReportRecipients = lazy(() => import('./pages/ReportRecipients'))
 const BureauChanges   = lazy(() => import('./pages/BureauChanges'))
 const Users           = lazy(() => import('./pages/Users'))
 const Roles           = lazy(() => import('./pages/Roles'))
@@ -75,6 +76,11 @@ export default function App() {
             <Route path="users"
               element={<ProtectedRoute permissions={['creer_acteurs', 'modifier_acteurs', 'supprimer_acteurs', 'desactiver_acteurs', 'approuver_modification_user']} />}>
               <Route index element={<Users />} />
+            </Route>
+
+            <Route path="report-recipients"
+              element={<ProtectedRoute permission="gerer_rapports" />}>
+              <Route index element={<ReportRecipients />} />
             </Route>
 
             <Route path="roles"

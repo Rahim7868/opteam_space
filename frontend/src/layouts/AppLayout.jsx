@@ -5,6 +5,7 @@ import {
   Gauge,
   History,
   LogOut,
+  Mail,
   Menu,
   Network,
   Users,
@@ -53,6 +54,12 @@ export default function AppLayout() {
         'consulter_bureau_change',
         'approuver_modification_bureau',
       ].some((permission) => hasPermission(permission)),
+    },
+    {
+      to: '/report-recipients',
+      label: 'Rapports',
+      icon: Mail,
+      show: hasPermission('gerer_rapports'),
     },
   ].filter((l) => l.always || l.show)
 

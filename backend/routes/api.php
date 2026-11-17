@@ -16,6 +16,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\ForgotPasswordController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ReportRecipientController;
 use Illuminate\Support\Facades\Route;
 
 // ── Auth publique avec rate limiting strict ────────────────────
@@ -43,6 +44,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead']);
     Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markRead']);
+
+    // ── Destinataires des rapports ────────────────────────────
+    Route::middleware('permission:gerer_rapports')->group(function () {
+        Route::patch('/report-recipients/{reportRecipient}/status', [ReportRecipientController::class, 'updateStatus']);
+        Route::patch('/report-recipients/{reportRecipient}/attachments', [ReportRecipientController::class, 'updateAttachments']);
+        Route::apiResource('report-recipients', ReportRecipientController::class)->except(['show']);
+    });
     
     // ── Export Fixings ──────────────────────────────────────────
     Route::get('/export/fixings-pdf', [ExportController::class, 'exportFixingsPdf']);
