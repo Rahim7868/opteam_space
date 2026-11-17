@@ -137,8 +137,8 @@ export default function ReportRecipients() {
 
   return (
     <div className="space-y-4">
-      {error && <ErrorAlert message={error} />}
-      {success && <SuccessAlert message={success} />}
+      <ErrorAlert message={error} onDismiss={() => setError('')} />
+      <SuccessAlert message={success} onDismiss={() => setSuccess('')} />
 
       {formOpen ? (
         <section className="panel overflow-hidden">
